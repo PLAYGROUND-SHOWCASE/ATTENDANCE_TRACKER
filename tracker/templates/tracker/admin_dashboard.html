@@ -1,0 +1,321 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Admin Dashboard - Enterprise Tracker{% endblock %}
+{% block page_header %}Admin Operations Dashboard{% endblock %}
+
+{% block content %}
+<!-- Grid of Key Metrics -->
+<div class="grid-stats" id="system-stats-grid">
+    <div class="card stat-card">
+        <div class="stat-icon" style="color: var(--color-secondary); background-color: hsla(210, 100%, 50%, 0.15);">
+            <i class="bi bi-people-fill"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-label">Total Staff</span>
+            <span class="stat-value" id="count-total">{{ stats.total }}</span>
+        </div>
+    </div>
+    
+    <div class="card stat-card">
+        <div class="stat-icon" style="color: var(--state-working); background-color: hsla(142, 70%, 45%, 0.15);">
+            <i class="bi bi-check-circle-fill"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-label">Working</span>
+            <span class="stat-value" id="count-working">{{ stats.working }}</span>
+        </div>
+    </div>
+
+    <div class="card stat-card">
+        <div class="stat-icon" style="color: var(--state-idle); background-color: hsla(47, 95%, 50%, 0.15);">
+            <i class="bi bi-hourglass-split"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-label">Idle</span>
+            <span class="stat-value" id="count-idle">{{ stats.idle }}</span>
+        </div>
+    </div>
+
+    <div class="card stat-card">
+        <div class="stat-icon" style="color: var(--state-outside); background-color: hsla(24, 95%, 55%, 0.15);">
+            <i class="bi bi-geo-alt-fill"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-label">Outside</span>
+            <span class="stat-value" id="count-outside">{{ stats.outside }}</span>
+        </div>
+    </div>
+
+    <div class="card stat-card">
+        <div class="stat-icon" style="color: var(--state-offline); background-color: hsla(350, 80%, 55%, 0.15);">
+            <i class="bi bi-wifi-off"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-label">Offline</span>
+            <span class="stat-value" id="count-offline">{{ stats.offline }}</span>
+        </div>
+    </div>
+
+    <div class="card stat-card">
+        <div class="stat-icon" style="color: var(--state-checkedout); background-color: hsla(215, 15%, 50%, 0.15);">
+            <i class="bi bi-door-closed-fill"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-label">Checked Out</span>
+            <span class="stat-value" id="count-checkedout">{{ stats.checked_out }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="charts-container">
+    <!-- Live Productivity Breakdown Chart -->
+    <div class="card">
+        <div class="card-title"><i class="bi bi-graph-up-arrow" style="margin-right: 8px;"></i> Live Status Ratio Today</div>
+        <div style="position: relative; height: 260px;">
+            <canvas id="statusChart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Attendance Compliance Pie Chart -->
+    <div class="card">
+        <div class="card-title"><i class="bi bi-pie-chart-fill" style="margin-right: 8px;"></i> Attendance Split</div>
+        <div style="position: relative; height: 260px;">
+            <canvas id="attendanceChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Employee Tracking Monitor -->
+<div class="card" style="margin-bottom: 32px;">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+        <span><i class="bi bi-activity" style="margin-right: 8px; color: var(--state-working)"></i> Live Presence Monitor (Auto-updates)</span>
+        <span class="badge status-working" style="padding: 6px 12px;"><span class="badge-dot"></span>Active Polling</span>
+    </div>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Status</th>
+                    <th>Assigned MAC</th>
+                    <th>Current IP</th>
+                    <th>Connection duration</th>
+                    <th>Active / Idle Today</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="live-monitor-tbody">
+                {% for emp in employees %}
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <img src="{{ emp.photo_url }}" alt="Profile" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
+                            <div>
+                                <strong>{{ emp.user.get_full_name|default:emp.user.username }}</strong>
+                                <br>
+                                <small style="color: var(--text-muted)">{{ emp.employee_id }} | {{ emp.designation }}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge status-{{ emp.current_status|lower }}">
+                            <span class="badge-dot"></span>{{ emp.get_current_status_display }}
+                        </span>
+                    </td>
+                    <td><code style="font-size: 0.85rem">{{ emp.assigned_laptop_mac|default:"-" }}</code></td>
+                    <td>{{ emp.last_seen_ip|default:"-" }}</td>
+                    <td>
+                        {% if emp.current_status == 'WORKING' or emp.current_status == 'IDLE' %}
+                        Active Now
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>{{ emp.working_hours_today|floatformat:1 }}h / {{ emp.idle_hours_today|floatformat:1 }}h</td>
+                    <td>
+                        <a href="{% url 'employee_profile_detail' emp.id %}" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.75rem;">
+                            View Profile
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px;">No employees registered. Go to Django Admin to register profiles.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="simulator-panel">
+    <!-- Router Network Monitoring Dashboard -->
+    <div class="card">
+        <div class="card-title"><i class="bi bi-router" style="margin-right: 8px; color: var(--color-secondary);"></i> Company Routers & WiFi Configuration</div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Router Name</th>
+                        <th>SSID</th>
+                        <th>Gateway IP</th>
+                        <th>Branch</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for router in routers %}
+                    <tr>
+                        <td><strong>{{ router.name }}</strong></td>
+                        <td><code>{{ router.ssid }}</code></td>
+                        <td>{{ router.gateway_ip }}</td>
+                        <td>{{ router.office.name }}</td>
+                        <td>
+                            {% if router.is_online %}
+                            <span class="badge status-working"><span class="badge-dot"></span>Online</span>
+                            {% else %}
+                            <span class="badge status-offline"><span class="badge-dot"></span>Offline</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted);">No office routers configured.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Leave Approval Queue -->
+    <div class="card">
+        <div class="card-title"><i class="bi bi-calendar-check" style="margin-right: 8px; color: var(--state-working);"></i> Team Leave Approval Center</div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Type</th>
+                        <th>Dates</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for leave in leaves %}
+                    <tr>
+                        <td>
+                            <strong>{{ leave.employee.user.get_full_name|default:leave.employee.user.username }}</strong>
+                            <br>
+                            <small style="color: var(--text-muted); font-size: 0.75rem;">Reason: {{ leave.reason|truncatechars:30 }}</small>
+                        </td>
+                        <td><span class="badge btn-secondary" style="background-color: var(--bg-surface-elevated)">{{ leave.get_leave_type_display }}</span></td>
+                        <td><small>{{ leave.start_date }} to {{ leave.end_date }}</small></td>
+                        <td>
+                            <div style="display: flex; gap: 6px;">
+                                <form method="POST" action="{% url 'approve_leave' leave.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" name="action" value="approve" class="btn btn-success" style="padding: 4px 8px; font-size: 0.75rem;">Approve</button>
+                                </form>
+                                <form method="POST" action="{% url 'approve_leave' leave.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" name="action" value="reject" class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;">Reject</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">No pending leave applications.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize Visual Charts
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    const attendanceCtx = document.getElementById('attendanceChart').getContext('2d');
+    
+    // Status Bar Chart
+    const statusChart = new Chart(statusCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Working', 'Idle', 'Meeting', 'Outside', 'Offline', 'Checked Out'],
+            datasets: [{
+                label: 'Employees in State',
+                data: [{{ stats.working }}, {{ stats.idle }}, {{ stats.meeting }}, {{ stats.outside }}, {{ stats.offline }}, {{ stats.checked_out }}],
+                backgroundColor: [
+                    'rgba(74, 222, 128, 0.65)',  // green
+                    'rgba(250, 204, 21, 0.65)',  // yellow
+                    'rgba(56, 189, 248, 0.65)',  // blue
+                    'rgba(251, 146, 60, 0.65)',  // orange
+                    'rgba(248, 113, 113, 0.65)', // red
+                    'rgba(156, 163, 175, 0.65)'  // gray
+                ],
+                borderColor: [
+                    'rgba(74, 222, 128, 1)',
+                    'rgba(250, 204, 21, 1)',
+                    'rgba(56, 189, 248, 1)',
+                    'rgba(251, 146, 60, 1)',
+                    'rgba(248, 113, 113, 1)',
+                    'rgba(156, 163, 175, 1)'
+                ],
+                borderWidth: 1.5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { color: 'rgba(255, 255, 255, 0.6)', stepSize: 1 }
+                },
+                x: {
+                    ticks: { color: 'rgba(255, 255, 255, 0.6)' }
+                }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+
+    // Attendance Compliance Pie
+    const attendanceChart = new Chart(attendanceCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Present Today', 'On Approved Leave', 'Absent Today'],
+            datasets: [{
+                data: [{{ stats.present_count }}, {{ stats.leave_count }}, {{ stats.absent_count }}],
+                backgroundColor: [
+                    'rgba(74, 222, 128, 0.7)',
+                    'rgba(56, 189, 248, 0.7)',
+                    'rgba(248, 113, 113, 0.7)'
+                ],
+                borderColor: 'var(--bg-surface)',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { color: 'rgba(255, 255, 255, 0.75)' }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

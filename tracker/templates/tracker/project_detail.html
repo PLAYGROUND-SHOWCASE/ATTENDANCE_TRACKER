@@ -1,0 +1,354 @@
+{% extends 'tracker/base.html' %}
+{% block title %}{{ project.name }} Board | Enterprise Tracker{% endblock %}
+{% block page_header %}{{ project.name }} ({{ project.key }}){% endblock %}
+
+{% block content %}
+<!-- Project Sub-header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+    <div style="display: flex; gap: 10px; font-size: 0.9rem; color: var(--text-secondary);">
+        <span>Category: <strong>{{ project.category }}</strong></span> |
+        <span>Budget: <strong>${{ project.budget }}</strong></span> |
+        <span>Actual Cost: <strong style="color: var(--state-working);">${{ project.cost }}</strong></span>
+    </div>
+    
+    <div style="display: flex; gap: 8px;">
+        <button onclick="openModal('create-issue-modal')" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Create Issue
+        </button>
+        <a href="{% url 'projects_list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Projects List
+        </a>
+    </div>
+</div>
+
+<div class="tab-container">
+    <!-- Jira-like Sub Navigation -->
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab="kanban-board">
+            <i class="bi bi-kanban"></i> Active Kanban Board
+        </button>
+        <button class="tab-btn" data-tab="project-backlog">
+            <i class="bi bi-list-nested"></i> Backlog & Sprints
+        </button>
+        <button class="tab-btn" data-tab="project-timeline">
+            <i class="bi bi-calendar-range"></i> Timeline (Gantt)
+        </button>
+    </div>
+
+    <!-- 1. KANBAN BOARD TAB -->
+    <div id="tab-pane-kanban-board" class="tab-pane active">
+        {% if active_sprint %}
+        <div class="card" style="padding: 12px 20px; margin-bottom: 16px; border-left: 4px solid var(--state-working);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Active Sprint: <strong>{{ active_sprint.name }}</strong> (Ends: {{ active_sprint.end_date }})</span>
+                <span class="badge status-working"><span class="badge-dot"></span> Active</span>
+            </div>
+        </div>
+        {% else %}
+        <div class="card" style="padding: 12px 20px; margin-bottom: 16px; border-left: 4px solid var(--state-idle);">
+            <span>No Active Sprint. Displaying unassigned backlog tasks. Check the <strong>Backlog & Sprints</strong> tab to start a sprint.</span>
+        </div>
+        {% endif %}
+
+        <div class="kanban-board">
+            <!-- BACKLOG -->
+            <div class="kanban-col">
+                <h3>Backlog <span class="kanban-col-count">{{ backlog_issues.count }}</span></h3>
+                <div class="kanban-cards-wrapper" data-status="BACKLOG">
+                    {% for issue in backlog_issues %}
+                    <div class="kanban-card" data-issue-id="{{ issue.id }}">
+                        <span class="type-badge type-{{ issue.issue_type|lower }}">{{ issue.get_issue_type_display }}</span>
+                        <h4 style="margin-top: 8px;">{{ issue.title }}</h4>
+                        <div class="kanban-card-meta">
+                            <span class="priority-badge prio-{{ issue.priority|lower }}">{{ issue.get_priority_display }}</span>
+                            <span style="font-weight:600;">{{ issue.assignee.user.username|default:"Unassigned" }}</span>
+                        </div>
+                        <select onchange="moveKanbanIssue('{{ issue.id }}', this.value, '{{ project.id }}')" style="width:100%; margin-top:8px; padding:3px; font-size:0.75rem; background:var(--bg-surface-elevated); color:var(--text-primary); border:1px solid var(--border-color);">
+                            <option value="BACKLOG" selected>Move to...</option>
+                            <option value="TODO">To Do</option>
+                            <option value="IN_PROGRESS">In Progress</option>
+                            <option value="IN_REVIEW">In Review</option>
+                            <option value="DONE">Done</option>
+                        </select>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- TODO -->
+            <div class="kanban-col">
+                <h3>To Do <span class="kanban-col-count">{{ todo_issues.count }}</span></h3>
+                <div class="kanban-cards-wrapper" data-status="TODO">
+                    {% for issue in todo_issues %}
+                    <div class="kanban-card" data-issue-id="{{ issue.id }}">
+                        <span class="type-badge type-{{ issue.issue_type|lower }}">{{ issue.get_issue_type_display }}</span>
+                        <h4 style="margin-top: 8px;">{{ issue.title }}</h4>
+                        <div class="kanban-card-meta">
+                            <span class="priority-badge prio-{{ issue.priority|lower }}">{{ issue.get_priority_display }}</span>
+                            <span style="font-weight:600;">{{ issue.assignee.user.username|default:"Unassigned" }}</span>
+                        </div>
+                        <select onchange="moveKanbanIssue('{{ issue.id }}', this.value, '{{ project.id }}')" style="width:100%; margin-top:8px; padding:3px; font-size:0.75rem; background:var(--bg-surface-elevated); color:var(--text-primary); border:1px solid var(--border-color);">
+                            <option value="TODO" selected>Move to...</option>
+                            <option value="BACKLOG">Backlog</option>
+                            <option value="IN_PROGRESS">In Progress</option>
+                            <option value="IN_REVIEW">In Review</option>
+                            <option value="DONE">Done</option>
+                        </select>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- IN PROGRESS -->
+            <div class="kanban-col">
+                <h3>In Progress <span class="kanban-col-count">{{ inprogress_issues.count }}</span></h3>
+                <div class="kanban-cards-wrapper" data-status="IN_PROGRESS">
+                    {% for issue in inprogress_issues %}
+                    <div class="kanban-card" data-issue-id="{{ issue.id }}">
+                        <span class="type-badge type-{{ issue.issue_type|lower }}">{{ issue.get_issue_type_display }}</span>
+                        <h4 style="margin-top: 8px;">{{ issue.title }}</h4>
+                        <div class="kanban-card-meta">
+                            <span class="priority-badge prio-{{ issue.priority|lower }}">{{ issue.get_priority_display }}</span>
+                            <span style="font-weight:600;">{{ issue.assignee.user.username|default:"Unassigned" }}</span>
+                        </div>
+                        <select onchange="moveKanbanIssue('{{ issue.id }}', this.value, '{{ project.id }}')" style="width:100%; margin-top:8px; padding:3px; font-size:0.75rem; background:var(--bg-surface-elevated); color:var(--text-primary); border:1px solid var(--border-color);">
+                            <option value="IN_PROGRESS" selected>Move to...</option>
+                            <option value="BACKLOG">Backlog</option>
+                            <option value="TODO">To Do</option>
+                            <option value="IN_REVIEW">In Review</option>
+                            <option value="DONE">Done</option>
+                        </select>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- IN REVIEW -->
+            <div class="kanban-col">
+                <h3>In Review <span class="kanban-col-count">{{ inreview_issues.count }}</span></h3>
+                <div class="kanban-cards-wrapper" data-status="IN_REVIEW">
+                    {% for issue in inreview_issues %}
+                    <div class="kanban-card" data-issue-id="{{ issue.id }}">
+                        <span class="type-badge type-{{ issue.issue_type|lower }}">{{ issue.get_issue_type_display }}</span>
+                        <h4 style="margin-top: 8px;">{{ issue.title }}</h4>
+                        <div class="kanban-card-meta">
+                            <span class="priority-badge prio-{{ issue.priority|lower }}">{{ issue.get_priority_display }}</span>
+                            <span style="font-weight:600;">{{ issue.assignee.user.username|default:"Unassigned" }}</span>
+                        </div>
+                        <select onchange="moveKanbanIssue('{{ issue.id }}', this.value, '{{ project.id }}')" style="width:100%; margin-top:8px; padding:3px; font-size:0.75rem; background:var(--bg-surface-elevated); color:var(--text-primary); border:1px solid var(--border-color);">
+                            <option value="IN_REVIEW" selected>Move to...</option>
+                            <option value="BACKLOG">Backlog</option>
+                            <option value="TODO">To Do</option>
+                            <option value="IN_PROGRESS">In Progress</option>
+                            <option value="DONE">Done</option>
+                        </select>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- DONE -->
+            <div class="kanban-col">
+                <h3>Done <span class="kanban-col-count">{{ done_issues.count }}</span></h3>
+                <div class="kanban-cards-wrapper" data-status="DONE">
+                    {% for issue in done_issues %}
+                    <div class="kanban-card" data-issue-id="{{ issue.id }}">
+                        <span class="type-badge type-{{ issue.issue_type|lower }}">{{ issue.get_issue_type_display }}</span>
+                        <h4 style="margin-top: 8px; text-decoration: line-through; opacity: 0.7;">{{ issue.title }}</h4>
+                        <div class="kanban-card-meta">
+                            <span class="priority-badge prio-{{ issue.priority|lower }}">{{ issue.get_priority_display }}</span>
+                            <span style="font-weight:600;">{{ issue.assignee.user.username|default:"Unassigned" }}</span>
+                        </div>
+                        <select onchange="moveKanbanIssue('{{ issue.id }}', this.value, '{{ project.id }}')" style="width:100%; margin-top:8px; padding:3px; font-size:0.75rem; background:var(--bg-surface-elevated); color:var(--text-primary); border:1px solid var(--border-color);">
+                            <option value="DONE" selected>Move to...</option>
+                            <option value="BACKLOG">Backlog</option>
+                            <option value="TODO">To Do</option>
+                            <option value="IN_PROGRESS">In Progress</option>
+                            <option value="IN_REVIEW">In Review</option>
+                        </select>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. BACKLOG & SPRINTS TAB -->
+    <div id="tab-pane-project-backlog" class="tab-pane">
+        <!-- Sprints List -->
+        <div class="card" style="margin-bottom: 24px;">
+            <h3 class="card-title"><i class="bi bi-arrow-repeat"></i> Project Sprints</h3>
+            
+            {% if active_sprint %}
+            <div style="padding: 14px; background-color: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between;">
+                    <strong>Active Sprint: {{ active_sprint.name }}</strong>
+                    <span style="font-size: 0.85rem; color: var(--text-secondary);">Timeline: {{ active_sprint.start_date }} to {{ active_sprint.end_date }}</span>
+                </div>
+            </div>
+            {% endif %}
+
+            {% for sp in planned_sprints %}
+            <div style="padding: 14px; background-color: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>{{ sp.name }} (Planned)</strong><br>
+                    <span style="font-size: 0.85rem; color: var(--text-secondary);">Scheduled: {{ sp.start_date }} to {{ sp.end_date }}</span>
+                </div>
+                <span class="badge" style="background-color: rgba(255,180,0,0.15); color: var(--state-idle);">Planned</span>
+            </div>
+            {% endfor %}
+
+            {% for sp in completed_sprints %}
+            <div style="padding: 14px; background-color: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; opacity: 0.7;">
+                <div>
+                    <strong>{{ sp.name }} (Completed)</strong><br>
+                    <span style="font-size: 0.85rem; color: var(--text-secondary);">Ended: {{ sp.end_date }}</span>
+                </div>
+                <span class="badge" style="background-color: rgba(0,200,100,0.15); color: var(--state-working);">Completed</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Backlog list -->
+        <div class="card">
+            <h3 class="card-title"><i class="bi bi-list-task"></i> General Backlog Issues</h3>
+            {% if backlog_issues %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Key</th>
+                            <th>Summary Title</th>
+                            <th>Type</th>
+                            <th>Priority</th>
+                            <th>Points</th>
+                            <th>Assignee</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for issue in backlog_issues %}
+                        <tr>
+                            <td>{{ project.key }}-{{ issue.id }}</td>
+                            <td><strong>{{ issue.title }}</strong></td>
+                            <td><span class="type-badge type-{{ issue.issue_type|lower }}">{{ issue.get_issue_type_display }}</span></td>
+                            <td><span class="priority-badge prio-{{ issue.priority|lower }}">{{ issue.get_priority_display }}</span></td>
+                            <td>{{ issue.story_points }} SP</td>
+                            <td>{{ issue.assignee.user.get_full_name|default:issue.assignee.user.username }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color: var(--text-muted);">Backlog is completely empty! Add issues to plan future work.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 3. TIMELINE TAB -->
+    <div id="tab-pane-project-timeline" class="tab-pane">
+        <div class="card">
+            <h3 class="card-title"><i class="bi bi-calendar-range"></i> Project Gantt Chart Timeline</h3>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px;">
+                Visualise the timeline layout of tasks based on created dates and set deadlines.
+            </p>
+            
+            <div class="gantt-chart">
+                <div class="gantt-header-row">
+                    <span>Task Title</span>
+                    <span>Timeline Duration Track</span>
+                </div>
+                
+                {% for issue in timeline_issues %}
+                <div class="gantt-row">
+                    <span class="gantt-label" title="{{ issue.title }}">
+                        {{ project.key }}-{{ issue.id }}: {{ issue.title }}
+                    </span>
+                    <div class="gantt-timeline-track">
+                        <!-- Mock positioning for visualization: start 10% width 50% -->
+                        <div class="gantt-bar-element" style="left: 10%; width: 60%;">
+                            Due: {{ issue.due_date }}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <p style="color: var(--text-muted); text-align: center; padding: 20px;">
+                    No tasks with due dates configured to render Gantt bars.
+                </p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Create Issue -->
+<div id="create-issue-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="margin: 0;"><i class="bi bi-file-earmark-plus"></i> Create Project Issue</h3>
+            <button onclick="closeModal('create-issue-modal')" class="modal-close">&times;</button>
+        </div>
+        <form method="POST" action="{% url 'create_issue' project.id %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="issue-title">Issue Title / Summary</label>
+                <input type="text" id="issue-title" name="title" class="form-control" placeholder="e.g. Implement MFA QR codes generator" required>
+            </div>
+
+            <div class="form-group">
+                <label for="issue-desc">Description Details</label>
+                <textarea id="issue-desc" name="description" class="form-control" rows="3" placeholder="Acceptance criteria, notes..."></textarea>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label for="issue-type">Issue Type</label>
+                    <select id="issue-type" name="issue_type" class="form-control">
+                        <option value="TASK">Task 📋</option>
+                        <option value="BUG">Bug 🐛</option>
+                        <option value="STORY">Story 📖</option>
+                        <option value="EPIC">Epic ⚡</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="issue-prio">Priority</label>
+                    <select id="issue-prio" name="priority" class="form-control">
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM" selected>Medium</option>
+                        <option value="HIGH">High</option>
+                        <option value="CRITICAL">Critical</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="issue-assignee">Assignee</label>
+                <select id="issue-assignee" name="assignee" class="form-control">
+                    <option value="">Unassigned</option>
+                    {% for emp in employees %}
+                    <option value="{{ emp.id }}">{{ emp.user.get_full_name|default:emp.user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label for="issue-sp">Story Points</label>
+                    <input type="number" id="issue-sp" name="story_points" class="form-control" value="3" min="0" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="issue-due">Due Date</label>
+                    <input type="date" id="issue-due" name="due_date" class="form-control">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                <button type="button" onclick="closeModal('create-issue-modal')" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Task</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

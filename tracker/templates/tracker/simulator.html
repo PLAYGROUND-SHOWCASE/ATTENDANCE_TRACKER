@@ -1,0 +1,237 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Agent Simulator - Enterprise Tracker{% endblock %}
+{% block page_header %}Interactive Agent & Network Presence Simulator{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: 24px; border-left: 4px solid var(--state-working);">
+    <div class="card-title" style="color: var(--state-working);"><i class="bi bi-info-circle-fill"></i> How to use the Presence Simulator</div>
+    <p style="font-size: 0.9rem; color: var(--text-secondary);">
+        This control panel acts as the virtual **Desktop Agent & Router Interface**. Since a full enterprise environment tracks background WiFi pings, keyboard inactivity, and browser connections, you can trigger these events manually below.
+        <br>
+        Use the <strong>"Fast-Forward Time"</strong> buttons to simulate the passage of minutes and see how the system's **7 Auto-Checkout Rules** are enforced instantly.
+    </p>
+</div>
+
+<!-- Select Employee for Simulation -->
+<div class="card" style="margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <img src="{{ active_profile.photo_url }}" alt="Profile" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover;">
+            <div>
+                <h3 style="font-size: 1.15rem; font-weight: 700;">Simulating User: {{ active_profile.user.get_full_name|default:active_profile.user.username }}</h3>
+                <p style="color: var(--text-muted); font-size: 0.8rem;">ID: {{ active_profile.employee_id }} | Current State: <strong style="color: var(--color-secondary);">{{ active_profile.get_current_status_display }}</strong></p>
+            </div>
+        </div>
+        
+        <div>
+            <form method="GET" action="{% url 'simulator' %}" style="display: flex; gap: 8px; align-items: center;">
+                <label for="employee_select" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Switch User:</label>
+                <select name="employee_id" id="employee_select" class="form-control" style="width: auto; padding: 6px 12px;" onchange="this.form.submit()">
+                    {% for emp in employees %}
+                    <option value="{{ emp.id }}" {% if emp.id == active_profile.id %}selected{% endif %}>{{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_id }})</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="simulator-panel">
+    <!-- Left Column: Device Signals -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        
+        <!-- 1. Router & WiFi Detection -->
+        <div class="control-group">
+            <div class="control-title"><i class="bi bi-router"></i> 1. Router / WiFi & Dual-Device Range</div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
+                Rule: Both phone & laptop must connect to Office WiFi. Distance must be &le; 10m.
+            </p>
+            <div style="font-size: 0.85rem; margin-bottom: 6px;">
+                <strong>Laptop Connection:</strong>
+            </div>
+            <div class="control-buttons" style="margin-bottom: 12px;">
+                <button type="button" class="btn btn-success" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'router_connect')">
+                    <i class="bi bi-wifi"></i> Connect Laptop
+                </button>
+                <button type="button" class="btn btn-danger" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'router_disconnect')">
+                    <i class="bi bi-wifi-off"></i> Disconnect Laptop
+                </button>
+            </div>
+            
+            <div style="font-size: 0.85rem; margin-bottom: 6px;">
+                <strong>Phone Connection:</strong>
+            </div>
+            <div class="control-buttons" style="margin-bottom: 12px;">
+                <button type="button" class="btn btn-success" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'phone_connect')">
+                    <i class="bi bi-phone"></i> Connect Phone
+                </button>
+                <button type="button" class="btn btn-danger" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'phone_disconnect')">
+                    <i class="bi bi-phone-fill"></i> Disconnect Phone
+                </button>
+            </div>
+            
+            <div style="font-size: 0.85rem; margin-bottom: 6px;">
+                <strong>Device Separation Distance:</strong>
+            </div>
+            <div class="control-buttons">
+                <button type="button" class="btn btn-secondary" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'set_distance', {distance: 2.0})">2 Meters (Close)</button>
+                <button type="button" class="btn btn-secondary" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'set_distance', {distance: 8.0})">8 Meters (Within limit)</button>
+                <button type="button" class="btn btn-danger" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'set_distance', {distance: 15.0})">15 Meters (Exceeded)</button>
+            </div>
+        </div>
+
+        <!-- 2. Desktop Agent State -->
+        <div class="control-group">
+            <div class="control-title"><i class="bi bi-laptop"></i> 2. Laptop Power & Screen State</div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">Rules: Shutdown/Logout triggers immediate checkout. Sleep mode starts check-out countdown.</p>
+            <div class="control-buttons">
+                <button type="button" class="btn btn-secondary" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'laptop_active')">Active Work</button>
+                <button type="button" class="btn btn-secondary" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'laptop_lock')">Lock Screen</button>
+                <button type="button" class="btn btn-secondary" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'laptop_unlock')">Unlock Screen</button>
+                <button type="button" class="btn btn-secondary" style="background-color: var(--state-idle); color: black;" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'laptop_sleep')">Sleep Laptop</button>
+                <button type="button" class="btn btn-danger" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'laptop_shutdown')">Shutdown Laptop</button>
+            </div>
+        </div>
+
+        <!-- 3. Internet Connectivity -->
+        <div class="control-group">
+            <div class="control-title"><i class="bi bi-globe"></i> 3. Office Internet Connection</div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">Rule: No Internet connection for 10 minutes triggers automatic check-out.</p>
+            <div class="control-buttons">
+                <button type="button" class="btn btn-success" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'internet_online')">Internet Restored</button>
+                <button type="button" class="btn btn-danger" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'internet_offline')">Internet Lost</button>
+            </div>
+        </div>
+
+        <!-- 4. Portal Browser State -->
+        <div class="control-group">
+            <div class="control-title"><i class="bi bi-browser-chrome"></i> 4. Browser Portal Session</div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">Rule: Portal closed or tab deactivated for 10 minutes triggers check-out.</p>
+            <div class="control-buttons">
+                <button type="button" class="btn btn-success" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'browser_open')">Open Portal</button>
+                <button type="button" class="btn btn-danger" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'browser_close')">Close Portal</button>
+            </div>
+        </div>
+
+        <!-- 5. User Activity Idle Engine -->
+        <div class="control-group">
+            <div class="control-title"><i class="bi bi-keyboard"></i> 5. Active Input & Mouse Activity</div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">Rule: 10 mins idle warns user; 15 mins changes state; 30 mins triggers auto checkout.</p>
+            <div class="control-buttons">
+                <button type="button" class="btn btn-success" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'activity_active')">Simulate Key/Mouse Inputs</button>
+                <button type="button" class="btn btn-secondary" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'activity_idle')">Go Idle</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Simulating Enforcements -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        
+        <!-- Compliance Card -->
+        <div class="card" style="border: 1px solid var(--color-primary); background: linear-gradient(135deg, hsla(263, 80%, 60%, 0.05), transparent), var(--bg-surface);">
+            <div class="card-title" style="color: var(--color-primary);"><i class="bi bi-clock-history"></i> Daily Shift Progress</div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;">
+                <span>Working Duration:</span>
+                <strong>{{ active_profile.working_hours_today|floatformat:1 }} / 9.0 Hours</strong>
+            </div>
+            
+            <div style="width: 100%; height: 8px; background-color: var(--bg-surface-elevated); border-radius: 4px; overflow: hidden; margin-bottom: 12px;">
+                <div style="width: {% if active_profile.working_hours_today >= 9.0 %}100{% else %}{% widthratio active_profile.working_hours_today 9 100 %}{% endif %}%; height: 100%; background: linear-gradient(90deg, var(--color-secondary), var(--state-working)); border-radius: 4px;"></div>
+            </div>
+            
+            {% if active_profile.working_hours_today >= 9.0 %}
+            <span class="badge status-working" style="width: 100%; justify-content: center; font-size: 0.8rem; padding: 6px;">
+                <i class="bi bi-patch-check-fill" style="margin-right: 4px;"></i> 9-Hour Shift Target Met!
+            </span>
+            {% else %}
+            <span class="badge status-idle" style="width: 100%; justify-content: center; font-size: 0.8rem; padding: 6px;">
+                <i class="bi bi-exclamation-triangle-fill" style="margin-right: 4px;"></i> Shift target incomplete
+            </span>
+            {% endif %}
+        </div>
+
+        <!-- Fast-forward Clock -->
+        <div class="card" style="border: 1px dashed var(--color-primary);">
+            <div class="card-title" style="color: var(--color-primary);"><i class="bi bi-clock-fill"></i> Enforce Auto-Checkout Rules</div>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">
+                Since auto-checkouts require minutes to expire, you can speed up time here. Fast-forwarding runs the backend checkout scanner against the active connection parameters.
+            </p>
+            
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button type="button" class="btn btn-primary" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'tick_time', {minutes: 5})">
+                    <i class="bi bi-fast-forward-fill"></i> Fast Forward 5 Minutes
+                </button>
+                <button type="button" class="btn btn-primary" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'tick_time', {minutes: 15})">
+                    <i class="bi bi-fast-forward-fill"></i> Fast Forward 15 Minutes
+                </button>
+                <button type="button" class="btn btn-primary" onclick="triggerSimulationEvent('{{ active_profile.id }}', 'tick_time', {minutes: 30})">
+                    <i class="bi bi-fast-forward-fill"></i> Fast Forward 30 Minutes
+                </button>
+            </div>
+        </div>
+
+        <!-- Live Simulation Stats Monitor -->
+        <div class="card">
+            <div class="card-title"><i class="bi bi-shield-exclamation"></i> Live Simulated State Parameters</div>
+            <div style="display: flex; flex-direction: column; gap: 12px; font-size: 0.9rem;">
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    <span style="color: var(--text-secondary);">Laptop WiFi Connected:</span>
+                    <strong style="color: {% if sim_state.wifi_connected %}var(--state-working){% else %}var(--state-offline){% endif %};">
+                        {% if sim_state.wifi_connected %}Yes{% else %}No{% endif %}
+                    </strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    <span style="color: var(--text-secondary);">Phone WiFi Connected:</span>
+                    <strong style="color: {% if sim_state.phone_connected %}var(--state-working){% else %}var(--state-offline){% endif %};">
+                        {% if sim_state.phone_connected %}Yes{% else %}No{% endif %}
+                    </strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    <span style="color: var(--text-secondary);">Device Distance (Max 10m):</span>
+                    <strong style="color: {% if sim_state.phone_laptop_distance <= 10.0 %}var(--state-working){% else %}var(--state-offline){% endif %};">
+                        {{ sim_state.phone_laptop_distance }} meters
+                    </strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    <span style="color: var(--text-secondary);">WiFi Disconnect Timer:</span>
+                    <span>{{ sim_state.wifi_disconnect_duration }} / 15 minutes</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    <span style="color: var(--text-secondary);">Laptop State:</span>
+                    <span>{{ sim_state.laptop_state }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    <span style="color: var(--text-secondary);">Laptop Sleep Timer:</span>
+                    <span>{{ sim_state.laptop_sleep_duration }} minutes</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    <span style="color: var(--text-secondary);">Is Internet Connection Active:</span>
+                    <strong style="color: {% if sim_state.internet_active %}var(--state-working){% else %}var(--state-offline){% endif %};">
+                        {% if sim_state.internet_active %}Yes (Active){% else %}No (Offline){% endif %}
+                    </strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    <span style="color: var(--text-secondary);">Internet Outage Timer:</span>
+                    <span>{{ sim_state.internet_lost_duration }} / 10 minutes</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    <span style="color: var(--text-secondary);">Portal Tab Browser Status:</span>
+                    <strong style="color: {% if sim_state.browser_open %}var(--state-working){% else %}var(--state-offline){% endif %};">
+                        {% if sim_state.browser_open %}Open (Active Session){% else %}Closed (Offline Tab){% endif %}
+                    </strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    <span style="color: var(--text-secondary);">Browser Inactivity Timer:</span>
+                    <span>{{ sim_state.browser_closed_duration }} / 10 minutes</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    <span style="color: var(--text-secondary);">User Input Idle Time:</span>
+                    <span>{{ sim_state.idle_duration }} / 30 minutes</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,203 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Projects | Enterprise Tracker{% endblock %}
+{% block page_header %}Projects Dashboard{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <p style="color: var(--text-secondary); margin: 0;">Manage multiple project boards, track budgets, and apply standard templates.</p>
+    <button onclick="openModal('create-project-modal')" class="btn btn-primary">
+        <i class="bi bi-folder-plus"></i> New Project
+    </button>
+</div>
+
+<div class="grid-stats" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+    {% for proj in projects %}
+    <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; min-height: 280px;">
+        <div>
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                <span class="badge" style="background-color: var(--bg-surface-elevated); border: 1px solid var(--border-color); font-weight: 700; color: var(--color-secondary);">
+                    {{ proj.key }}
+                </span>
+                <span class="priority-badge prio-{{ proj.priority|lower }}">
+                    {{ proj.get_priority_display }}
+                </span>
+            </div>
+            
+            <h3 style="margin-bottom: 8px; font-size: 1.15rem;">
+                <a href="{% url 'project_board' proj.id %}" style="color: var(--text-primary); text-decoration: none;">
+                    {{ proj.name }}
+                </a>
+            </h3>
+            
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px; min-height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                {{ proj.description|default:"No description provided." }}
+            </p>
+        </div>
+
+        <div>
+            <!-- Category and status -->
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 12px;">
+                <span>Category: <strong>{{ proj.category }}</strong></span>
+                <span class="badge" style="background-color: {% if proj.status == 'ACTIVE' %}rgba(0,200,100,0.1){% else %}rgba(100,100,100,0.15){% endif %}; color: {% if proj.status == 'ACTIVE' %}var(--state-working){% else %}var(--text-secondary){% endif %};">
+                    {{ proj.get_status_display }}
+                </span>
+            </div>
+
+            <!-- Financials progress bar -->
+            <div style="margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 4px;">
+                    <span>Budget Utilisation</span>
+                    <strong>${{ proj.cost }} / ${{ proj.budget }}</strong>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-fill" style="width: {% if proj.budget > 0 %}{% widthratio proj.cost proj.budget 100 %}{% else %}0{% endif %}%;"></div>
+                </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div style="display: flex; gap: 8px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                <a href="{% url 'project_board' proj.id %}" class="btn btn-secondary" style="flex-grow: 1; font-size: 0.8rem; padding: 6px 12px; justify-content: center;">
+                    <i class="bi bi-box-arrow-in-right"></i> Open Board
+                </a>
+                <button onclick="openCloneModal('{{ proj.id }}', '{{ proj.name }}', '{{ proj.key }}')" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.8rem;" title="Clone Project">
+                    <i class="bi bi-copy"></i>
+                </button>
+                {% if proj.status == 'ACTIVE' %}
+                <a href="{% url 'project_archive' proj.id %}" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.8rem; color: var(--state-idle);" title="Archive Project" onclick="return confirm('Archive this project?')">
+                    <i class="bi bi-archive"></i>
+                </a>
+                {% endif %}
+                <a href="{% url 'project_delete' proj.id %}" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.8rem; color: var(--state-offline);" title="Delete Project" onclick="return confirm('Permanently delete this project?')">
+                    <i class="bi bi-trash"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 40px;">
+        <i class="bi bi-folder-x" style="font-size: 3rem; color: var(--text-muted);"></i>
+        <h3 style="margin-top: 12px;">No Projects Configured</h3>
+        <p style="color: var(--text-muted); margin-bottom: 20px;">Get started by creating your first Project Board.</p>
+        <button onclick="openModal('create-project-modal')" class="btn btn-primary">Create Project</button>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal: Create Project -->
+<div id="create-project-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="margin: 0;"><i class="bi bi-folder-plus"></i> Create New Project</h3>
+            <button onclick="closeModal('create-project-modal')" class="modal-close">&times;</button>
+        </div>
+        <form method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="new-proj-name">Project Name</label>
+                <input type="text" id="new-proj-name" name="name" class="form-control" placeholder="e.g. Jira Board Revamp" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="new-proj-key">Project Key (Short tag)</label>
+                <input type="text" id="new-proj-key" name="key" class="form-control" placeholder="e.g. JIRA" max_length="10" required>
+            </div>
+
+            <div class="form-group">
+                <label for="new-proj-desc">Description</label>
+                <textarea id="new-proj-desc" name="description" class="form-control" rows="3" placeholder="Brief outline of objectives..."></textarea>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label for="new-proj-cat">Category</label>
+                    <select id="new-proj-cat" name="category" class="form-control">
+                        <option value="Software">Software Development</option>
+                        <option value="Business">Business Operations</option>
+                        <option value="Marketing">Marketing Campaigns</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="new-proj-prio">Priority</label>
+                    <select id="new-proj-prio" name="priority" class="form-control">
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM" selected>Medium</option>
+                        <option value="HIGH">High</option>
+                        <option value="CRITICAL">Critical</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="new-proj-budget">Financial Budget ($)</label>
+                <input type="number" id="new-proj-budget" name="budget" class="form-control" value="50000" min="0" required>
+            </div>
+
+            <div class="form-group">
+                <label for="new-proj-cc">Cost Center Allocation</label>
+                <select id="new-proj-cc" name="cost_center" class="form-control">
+                    {% for cc in cost_centers %}
+                    <option value="{{ cc.id }}">{{ cc.code }} - {{ cc.name }}</option>
+                    {% empty %}
+                    <option value="">No Cost Centers Configured</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="new-proj-temp">Project Template (Presets)</label>
+                <select id="new-proj-temp" name="template_name" class="form-control">
+                    <option value="SOFTWARE">Software Development Template (Sprints + Kanban)</option>
+                    <option value="KANBAN">Kanban Service Template (Simple Todo list)</option>
+                    <option value="GENERAL">General Project Management Template (Phases)</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                <button type="button" onclick="closeModal('create-project-modal')" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Board</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Clone Project -->
+<div id="clone-project-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="margin: 0;"><i class="bi bi-copy"></i> Clone Project Board</h3>
+            <button onclick="closeModal('clone-project-modal')" class="modal-close">&times;</button>
+        </div>
+        <form id="clone-project-form" method="POST" action="">
+            {% csrf_token %}
+            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">
+                Cloning will copy project settings, sprint frameworks, and uncompleted task definitions.
+            </p>
+            <div class="form-group">
+                <label for="clone-proj-name">New Project Name</label>
+                <input type="text" id="clone-proj-name" name="name" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="clone-proj-key">New Project Key</label>
+                <input type="text" id="clone-proj-key" name="key" class="form-control" max_length="10" required>
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                <button type="button" onclick="closeModal('clone-project-modal')" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Clone Board</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openCloneModal(projId, name, key) {
+    const form = document.getElementById('clone-project-form');
+    form.action = `/projects/${projId}/clone/`;
+    document.getElementById('clone-proj-name').value = `${name} - Clone`;
+    document.getElementById('clone-proj-key').value = `${key}C`;
+    openModal('clone-project-modal');
+}
+</script>
+{% endblock %}

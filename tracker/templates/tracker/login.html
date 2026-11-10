@@ -1,0 +1,53 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Enterprise Tracker</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'tracker/style.css' %}">
+</head>
+<body class="login-container">
+    <div class="login-card">
+        <div style="text-align: center; margin-bottom: 30px;">
+            <i class="bi bi-shield-lock" style="font-size: 3rem; color: var(--color-primary); display: inline-block; margin-bottom: 12px; filter: drop-shadow(0 0 10px hsla(263,80%,60%,0.3));"></i>
+            <h2 style="font-size: 1.75rem; font-weight: 800; letter-spacing: -0.5px;">Sign In</h2>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 4px;">Employee & Network Presence Monitor</p>
+        </div>
+        
+        {% if error %}
+        <div style="padding: 10px 14px; background-color: hsla(350, 80%, 55%, 0.15); border-left: 3px solid var(--state-offline); border-radius: var(--radius-sm); font-size: 0.85rem; color: var(--state-offline); margin-bottom: 20px;">
+            {{ error }}
+        </div>
+        {% endif %}
+        
+        <form method="POST" action="{% url 'login' %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="username">Username or Email</label>
+                <input type="text" id="username" name="username" class="form-control" placeholder="Enter your username" required autofocus>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label for="password" style="margin-bottom: 0;">Password</label>
+                </div>
+                <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; border-radius: var(--radius-sm); font-size: 1rem; box-shadow: var(--shadow-primary-glow);">
+                Access Portal <i class="bi bi-arrow-right" style="margin-left: 4px;"></i>
+            </button>
+        </form>
+        
+        <div style="text-align: center; margin-top: 20px; font-size: 0.85rem;">
+            New Employee? <a href="{% url 'register' %}" style="color: var(--color-primary); text-decoration: none; font-weight: 600;">Register Account</a>
+        </div>
+        
+        <div style="text-align: center; margin-top: 24px; font-size: 0.8rem; color: var(--text-muted);">
+            Enterprise Security Portal. For authorized access only.
+        </div>
+    </div>
+</body>
+</html>

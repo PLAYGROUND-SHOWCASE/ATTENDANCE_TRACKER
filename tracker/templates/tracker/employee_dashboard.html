@@ -1,0 +1,204 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Employee Portal - Enterprise Tracker{% endblock %}
+{% block page_header %}Employee Work Center{% endblock %}
+
+{% block content %}
+<div class="simulator-panel" style="margin-bottom: 32px;">
+    <!-- Column 1: Check In Console & Profile Details -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Check-in & Status Console -->
+        <div class="card" style="position: relative; overflow: hidden; background: linear-gradient(135deg, hsla(263, 80%, 60%, 0.1), transparent), var(--bg-surface);">
+            <div class="card-title"><i class="bi bi-clock-history" style="margin-right: 8px;"></i> Attendance Console</div>
+            
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                <div>
+                    <span style="font-size: 0.85rem; color: var(--text-secondary);">Today's Status:</span>
+                    <br>
+                    <span style="font-weight: 700; font-size: 1.1rem; color: var(--color-secondary);">
+                        {% if attendance %}
+                            {% if attendance.check_out %}Checked Out{% else %}Checked In{% endif %}
+                        {% else %}
+                            Not Checked In Today
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <span class="badge status-{{ profile.current_status|lower }}">
+                    <span class="badge-dot"></span>{{ profile.get_current_status_display }}
+                </span>
+            </div>
+            
+            <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+                {% if not attendance or attendance.check_out %}
+                <form method="POST" action="{% url 'employee_checkin' %}" style="flex-grow: 1;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success" style="width: 100%; padding: 12px;">
+                        <i class="bi bi-box-arrow-in-right"></i> Check In Now
+                    </button>
+                </form>
+                {% else %}
+                <form method="POST" action="{% url 'employee_checkout' %}" style="flex-grow: 1;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger" style="width: 100%; padding: 12px;">
+                        <i class="bi bi-box-arrow-left"></i> Check Out Now
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            
+            <!-- Manual Status Toggle -->
+            {% if attendance and not attendance.check_out %}
+            <div style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px; color: var(--text-secondary);">Update Presence Status</label>
+                <div class="control-buttons">
+                    <form method="POST" action="{% url 'employee_status_change' %}">
+                        {% csrf_token %}
+                        <button type="submit" name="status" value="WORKING" class="btn {% if profile.current_status == 'WORKING' %}btn-success{% else %}btn-secondary{% endif %}" style="padding: 6px 12px; font-size: 0.8rem;">Working</button>
+                    </form>
+                    <form method="POST" action="{% url 'employee_status_change' %}">
+                        {% csrf_token %}
+                        <button type="submit" name="status" value="IDLE" class="btn {% if profile.current_status == 'IDLE' %}btn-primary{% else %}btn-secondary{% endif %}" style="padding: 6px 12px; font-size: 0.8rem;">Idle</button>
+                    </form>
+                    <form method="POST" action="{% url 'employee_status_change' %}">
+                        {% csrf_token %}
+                        <button type="submit" name="status" value="MEETING" class="btn {% if profile.current_status == 'MEETING' %}btn-primary{% else %}btn-secondary{% endif %}" style="padding: 6px 12px; font-size: 0.8rem;">Meeting</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Profile details -->
+        <div class="card">
+            <div class="card-title"><i class="bi bi-person-lines-fill" style="margin-right: 8px;"></i> Profile Specifications</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem;">
+                <div>
+                    <span style="color: var(--text-secondary);">Employee ID:</span>
+                    <p style="font-weight: 600;">{{ profile.employee_id }}</p>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">Designation:</span>
+                    <p style="font-weight: 600;">{{ profile.designation }}</p>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">Department:</span>
+                    <p style="font-weight: 600;">{{ profile.department.name|default:"General" }}</p>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">Manager:</span>
+                    <p style="font-weight: 600;">{% if profile.manager %}{{ profile.manager.user.get_full_name|default:profile.manager.user.username }}{% else %}None{% endif %}</p>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">Employment Type:</span>
+                    <p style="font-weight: 600;">{{ profile.get_employment_type_display }}</p>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">Shift timing:</span>
+                    <p style="font-weight: 600;">{{ profile.shift_start|time:"H:i" }} - {{ profile.shift_end|time:"H:i" }}</p>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">Office Wifi MAC:</span>
+                    <p style="font-weight: 600;"><code style="color: var(--color-secondary);">{{ profile.assigned_laptop_mac|default:"Not Configured" }}</code></p>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">Geographical Branch:</span>
+                    <p style="font-weight: 600;">{{ profile.office_location.name|default:"Not Configured" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Column 2: Event Timeline for Today -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Timeline Log -->
+        <div class="card" style="flex-grow: 1;">
+            <div class="card-title"><i class="bi bi-clock-history" style="margin-right: 8px; color: var(--color-primary);"></i> Daily Presence Timeline</div>
+            <div class="timeline">
+                {% for item in timeline %}
+                <div class="timeline-item {{ item.status }}">
+                    <div class="timeline-time">{{ item.time|time:"H:i" }}</div>
+                    <div class="timeline-title">{{ item.title }}</div>
+                    <div class="timeline-detail">{{ item.detail }}</div>
+                </div>
+                {% empty %}
+                <div style="text-align: center; color: var(--text-muted); padding: 32px 0;">
+                    <i class="bi bi-calendar-x" style="font-size: 2rem; display: block; margin-bottom: 8px;"></i>
+                    No timeline logs generated yet. Checks start once Checked In and pinging.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="simulator-panel">
+    <!-- Leave submission card -->
+    <div class="card">
+        <div class="card-title"><i class="bi bi-file-earmark-plus" style="margin-right: 8px; color: var(--color-secondary);"></i> Request Leave Leave</div>
+        <form method="POST" action="{% url 'submit_leave' %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="leave_type">Leave Category</label>
+                <select name="leave_type" id="leave_type" class="form-control" required>
+                    <option value="SICK">Sick Leave</option>
+                    <option value="CASUAL">Casual Leave</option>
+                    <option value="ANNUAL">Annual Paid Leave</option>
+                    <option value="UNPAID">Unpaid Leave</option>
+                </select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="start_date">Start Date</label>
+                    <input type="date" id="start_date" name="start_date" class="form-control" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="end_date">End Date</label>
+                    <input type="date" id="end_date" name="end_date" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="reason">Explanatory Reason</label>
+                <textarea name="reason" id="reason" rows="3" class="form-control" placeholder="Provide description..." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                Submit Leave Application
+            </button>
+        </form>
+    </div>
+
+    <!-- Timesheet Log -->
+    <div class="card">
+        <div class="card-title"><i class="bi bi-calendar-week" style="margin-right: 8px; color: var(--color-secondary);"></i> Attendance History Logs</div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>In Time</th>
+                        <th>Out Time</th>
+                        <th>Total Hours</th>
+                        <th>In Method</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in past_attendance %}
+                    <tr>
+                        <td><strong>{{ log.date }}</strong></td>
+                        <td>{{ log.check_in|time:"H:i:s" }}</td>
+                        <td>{{ log.check_out|time:"H:i:s"|default:"-" }}</td>
+                        <td>{{ log.total_hours|floatformat:2 }} hrs</td>
+                        <td><small style="color: var(--text-secondary)">{{ log.get_check_in_method_display }}</small></td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No past timesheets logged.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

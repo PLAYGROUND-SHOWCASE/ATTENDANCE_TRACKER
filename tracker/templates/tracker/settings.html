@@ -1,0 +1,111 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Portal Settings | Enterprise Tracker{% endblock %}
+{% block page_header %}Portal Settings{% endblock %}
+
+{% block content %}
+<p style="color: var(--text-secondary); margin-bottom: 24px;">Configure dashboards customization, simulated MFA parameters, and Single Sign-On settings.</p>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+    <!-- Main configuration columns -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Widget Selection -->
+        <div class="card">
+            <h3 class="card-title"><i class="bi bi-grid-3x3-gap"></i> Customize Dashboard Widgets</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                Toggle the widgets you want visible on your Dashboard Hub tabs.
+            </p>
+            <form method="POST">
+                {% csrf_token %}
+                <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+                    {% for w in widgets %}
+                    <label style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background-color: var(--bg-surface-elevated); border-radius: var(--radius-sm); cursor: pointer; border: 1px solid var(--border-color);">
+                        <span style="font-weight: 600; font-size: 0.9rem;">
+                            {% if w.widget_type == 'WORKLOAD' %}<i class="bi bi-speedometer" style="color: var(--color-primary);"></i> Workload Summary Widget
+                            {% elif w.widget_type == 'DEADLINES' %}<i class="bi bi-clock" style="color: var(--state-outside);"></i> Upcoming Deadlines Widget
+                            {% elif w.widget_type == 'PERFORMANCE' %}<i class="bi bi-graph-up" style="color: var(--state-working);"></i> Employee Performance Analytics Widget
+                            {% elif w.widget_type == 'CALENDAR' %}<i class="bi bi-calendar3" style="color: var(--state-meeting);"></i> Calendar Overview Widget
+                            {% elif w.widget_type == 'HEALTH' %}<i class="bi bi-heart-pulse" style="color: var(--state-offline);"></i> Project Health Status Widget
+                            {% else %}<i class="bi bi-clipboard-check" style="color: var(--state-idle);"></i> Attendance Summary Widget
+                            {% endif %}
+                        </span>
+                        <input type="checkbox" name="widget_{{ w.widget_type }}" {% if w.is_enabled %}checked{% endif %} style="transform: scale(1.2);">
+                    </label>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-primary">Save Widget Layout</button>
+            </form>
+        </div>
+
+        <!-- Simulated MFA panel -->
+        <div class="card">
+            <h3 class="card-title"><i class="bi bi-shield-check"></i> Simulated Multi-Factor Authentication (MFA)</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                Secure your enterprise login using time-based one-time passcodes (TOTP).
+            </p>
+            <div style="padding: 16px; background-color: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-md); display: flex; gap: 20px; align-items: start; flex-wrap: wrap;">
+                <!-- QR Mock Code -->
+                <div style="background: white; padding: 10px; border-radius: var(--radius-sm); text-align: center; width: 140px;">
+                    <!-- Visual SVG Mock representation of QR code -->
+                    <svg width="120" height="120" viewBox="0 0 100 100" style="display: block;">
+                        <rect width="100" height="100" fill="white"/>
+                        <!-- QR modules mock representation -->
+                        <rect x="5" y="5" width="25" height="25" fill="black"/>
+                        <rect x="10" y="10" width="15" height="15" fill="white"/>
+                        <rect x="70" y="5" width="25" height="25" fill="black"/>
+                        <rect x="75" y="10" width="15" height="15" fill="white"/>
+                        <rect x="5" y="70" width="25" height="25" fill="black"/>
+                        <rect x="10" y="75" width="15" height="15" fill="white"/>
+                        <!-- Random dots inside -->
+                        <rect x="40" y="40" width="10" height="10" fill="black"/>
+                        <rect x="50" y="45" width="5" height="5" fill="black"/>
+                        <rect x="60" y="60" width="15" height="15" fill="black"/>
+                        <rect x="35" y="65" width="10" height="10" fill="black"/>
+                        <rect x="45" y="20" width="10" height="20" fill="black"/>
+                    </svg>
+                    <span style="font-size: 0.65rem; color: black; font-weight: 700;">Secret: CC9X A28B</span>
+                </div>
+                
+                <div style="flex-grow: 1; min-width: 250px;">
+                    <h4 style="margin-bottom: 8px;">Authenticator Settings</h4>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px;">
+                        1. Scan the QR code with Google Authenticator or Microsoft Authenticator.<br>
+                        2. Safely backup the recovery codes in case you lose access to your device.
+                    </p>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+                        <span class="badge" style="background-color: var(--bg-surface); padding: 4px 8px; border: 1px solid var(--border-color); font-size: 0.75rem;">1289-9943</span>
+                        <span class="badge" style="background-color: var(--bg-surface); padding: 4px 8px; border: 1px solid var(--border-color); font-size: 0.75rem;">8829-1092</span>
+                        <span class="badge" style="background-color: var(--bg-surface); padding: 4px 8px; border: 1px solid var(--border-color); font-size: 0.75rem;">4403-1294</span>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="alert('MFA simulation updated successfully')" style="padding: 6px 12px; font-size: 0.8rem;">Toggle Enabled State</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SSO configuration sidebar -->
+    <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
+        <h3 class="card-title"><i class="bi bi-box-arrow-in-right"></i> Single Sign-On (SSO)</h3>
+        <p style="font-size: 0.85rem; color: var(--text-secondary);">
+            Link your enterprise track credential to identity providers.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="padding: 12px; background-color: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>Google Workspace</strong><br>
+                    <span style="font-size: 0.75rem; color: var(--state-working);">Connected 🟢</span>
+                </div>
+                <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;">Disconnect</button>
+            </div>
+            
+            <div style="padding: 12px; background-color: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>Okta Cloud SAML</strong><br>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Not Linked 🔴</span>
+                </div>
+                <button type="button" class="btn btn-primary" style="padding: 4px 8px; font-size: 0.75rem;">Link Okta</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

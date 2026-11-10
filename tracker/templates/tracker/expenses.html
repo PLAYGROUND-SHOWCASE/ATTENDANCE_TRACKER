@@ -1,0 +1,189 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Expenses Tracker | Enterprise Tracker{% endblock %}
+{% block page_header %}Expenses Tracker{% endblock %}
+
+{% block content %}
+<p style="color: var(--text-secondary); margin-bottom: 24px;">Manage corporate expense claims, track project funding limits, and authorize payouts.</p>
+
+<div class="tab-container">
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab="claims">
+            <i class="bi bi-wallet2"></i> My Expense Claims
+        </button>
+        {% if user.is_superuser or profile.role == 'ADMIN' or profile.role == 'MANAGER' %}
+        <button class="tab-btn" data-tab="approvals">
+            <i class="bi bi-patch-check"></i> Pending Approvals
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- 1. MY CLAIMS TAB -->
+    <div id="tab-pane-claims" class="tab-pane active">
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+            <!-- Claims List -->
+            <div class="card">
+                <h3 class="card-title"><i class="bi bi-list-stars"></i> Filed Expense History</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Project</th>
+                                <th>Amount</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for exp in my_expenses %}
+                            <tr>
+                                <td>
+                                    <strong>{{ exp.category }}</strong><br>
+                                    <small style="color: var(--text-secondary);">{{ exp.description }}</small>
+                                </td>
+                                <td>{{ exp.project.name|default:"General" }}</td>
+                                <td style="font-weight: 700; color: var(--state-working);">${{ exp.amount|floatformat:2 }}</td>
+                                <td>{{ exp.date }}</td>
+                                <td>
+                                    <span class="badge" style="background-color: {% if exp.status == 'APPROVED' %}rgba(0,200,100,0.15){% elif exp.status == 'REJECTED' %}rgba(255,50,50,0.15){% else %}rgba(255,180,0,0.15){% endif %}; color: {% if exp.status == 'APPROVED' %}var(--state-working){% elif exp.status == 'REJECTED' %}var(--state-offline){% else %}var(--state-idle){% endif %};">
+                                        {{ exp.get_status_display }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" style="text-align: center; color: var(--text-muted);">No expense reports logged.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Submit Claim Form -->
+            <div class="card" style="height: fit-content;">
+                <h3 class="card-title"><i class="bi bi-file-earmark-plus"></i> Submit Payout Claim</h3>
+                <form method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="claim_expense">
+
+                    <div class="form-group">
+                        <label for="exp-project">Project Link</label>
+                        <select id="exp-project" name="project" class="form-control">
+                            <option value="">General Overhead (No Project)</option>
+                            {% for p in projects %}
+                            <option value="{{ p.id }}">{{ p.name }} ({{ p.key }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exp-amount">Amount claimed ($)</label>
+                        <input type="number" step="0.01" id="exp-amount" name="amount" class="form-control" placeholder="0.00" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exp-cat">Category</label>
+                        <select id="exp-cat" name="category" class="form-control">
+                            <option value="Travel & Lodging">Travel & Lodging</option>
+                            <option value="Software License">Software License</option>
+                            <option value="Hardware & Office Equipment">Hardware & Office Equipment</option>
+                            <option value="Meals & Entertainment">Meals & Entertainment</option>
+                            <option value="Other Operations">Other Operations</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exp-desc">Description</label>
+                        <textarea id="exp-desc" name="description" class="form-control" rows="2" placeholder="Purchase purpose, receipt reference..." required></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">File Expense</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. PENDING APPROVALS TAB -->
+    {% if user.is_superuser or profile.role == 'ADMIN' or profile.role == 'MANAGER' %}
+    <div id="tab-pane-approvals" class="tab-pane">
+        <div class="card" style="margin-bottom: 24px;">
+            <h3 class="card-title"><i class="bi bi-person-check"></i> Outstanding Claims Queue</h3>
+            {% if pending_approvals %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Submitter</th>
+                            <th>Category & Description</th>
+                            <th>Project</th>
+                            <th>Amount</th>
+                            <th>Date</th>
+                            <th>Authorize Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for exp in pending_approvals %}
+                        <tr>
+                            <td><strong>{{ exp.employee.user.get_full_name|default:exp.employee.user.username }}</strong></td>
+                            <td>
+                                <strong>{{ exp.category }}</strong><br>
+                                <small style="color:var(--text-secondary);">{{ exp.description }}</small>
+                            </td>
+                            <td>{{ exp.project.name|default:"General Overhead" }}</td>
+                            <td style="font-weight: 700; color: var(--state-working);">${{ exp.amount|floatformat:2 }}</td>
+                            <td>{{ exp.date }}</td>
+                            <td>
+                                <form method="POST" action="{% url 'approve_expense' exp.id %}" style="display: inline-flex; gap: 8px; margin: 0;">
+                                    {% csrf_token %}
+                                    <button type="submit" name="action" value="approve" class="btn btn-success" style="padding: 4px 8px; font-size: 0.75rem;">Approve</button>
+                                    <button type="submit" name="action" value="reject" class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;">Reject</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color: var(--text-muted);">The approvals queue is clean! No pending requests.</p>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h3 class="card-title"><i class="bi bi-check2-all"></i> Approved Expense Log</h3>
+            {% if approved_expenses %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Submitter</th>
+                            <th>Category</th>
+                            <th>Project</th>
+                            <th>Amount</th>
+                            <th>Date</th>
+                            <th>Approved By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for exp in approved_expenses %}
+                        <tr>
+                            <td><strong>{{ exp.employee.user.get_full_name|default:exp.employee.user.username }}</strong></td>
+                            <td>{{ exp.category }}</td>
+                            <td>{{ exp.project.name|default:"General" }}</td>
+                            <td style="font-weight: 700; color: var(--state-working);">${{ exp.amount|floatformat:2 }}</td>
+                            <td>{{ exp.date }}</td>
+                            <td>{{ exp.approved_by.user.get_full_name|default:exp.approved_by.user.username }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color: var(--text-muted);">No approved payouts documented yet.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Profile Details - {{ profile.user.get_full_name }}{% endblock %}
+{% block page_header %}Employee Audit Profile{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<div class="simulator-panel" style="margin-bottom: 32px;">
+    <!-- Profile Card & Details -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        <div class="card" style="text-align: center;">
+            <img src="{{ profile.photo_url }}" alt="Profile" style="width: 96px; height: 96px; border-radius: 50%; object-fit: cover; border: 3px solid var(--color-primary); margin: 0 auto 16px auto;">
+            <h2 style="font-size: 1.5rem; font-weight: 700;">{{ profile.user.get_full_name|default:profile.user.username }}</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 16px;">{{ profile.designation }} | ID: {{ profile.employee_id }}</p>
+            
+            <span class="badge status-{{ profile.current_status|lower }}" style="padding: 8px 16px; font-size: 0.9rem;">
+                <span class="badge-dot"></span>{{ profile.get_current_status_display }}
+            </span>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><i class="bi bi-info-circle-fill"></i> System Specifications</div>
+            <div style="display: flex; flex-direction: column; gap: 12px; font-size: 0.9rem;">
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+                    <span style="color: var(--text-secondary);">Department:</span>
+                    <span>{{ profile.department.name|default:"General" }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+                    <span style="color: var(--text-secondary);">Direct Manager:</span>
+                    <span>{% if profile.manager %}{{ profile.manager.user.get_full_name|default:profile.manager.user.username }}{% else %}None{% endif %}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+                    <span style="color: var(--text-secondary);">Assigned Laptop MAC:</span>
+                    <code>{{ profile.assigned_laptop_mac|default:"None" }}</code>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+                    <span style="color: var(--text-secondary);">Assigned Desktop MAC:</span>
+                    <code>{{ profile.assigned_desktop_mac|default:"None" }}</code>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+                    <span style="color: var(--text-secondary);">Last IP Addr:</span>
+                    <code>{{ profile.last_seen_ip|default:"-" }}</code>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding-bottom: 6px;">
+                    <span style="color: var(--text-secondary);">Shift Duration:</span>
+                    <span>{{ profile.shift_start }} - {{ profile.shift_end }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active logs for today -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        <div class="card" style="flex-grow: 1;">
+            <div class="card-title"><i class="bi bi-clock-history"></i> Today's Device Timeline</div>
+            <div class="timeline">
+                {% for item in timeline %}
+                <div class="timeline-item {{ item.status }}">
+                    <div class="timeline-time">{{ item.time|time:"H:i" }}</div>
+                    <div class="timeline-title">{{ item.title }}</div>
+                    <div class="timeline-detail">{{ item.detail }}</div>
+                </div>
+                {% empty %}
+                <p style="text-align: center; color: var(--text-muted); padding: 40px 0;">No active logs tracked today.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title"><i class="bi bi-graph-up"></i> Personal Productivity Summary Today</div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+        <div class="card" style="background-color: var(--bg-surface-elevated); padding: 16px;">
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Working Hours</span>
+            <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--state-working);">{{ profile.working_hours_today|floatformat:2 }} hrs</h3>
+        </div>
+        <div class="card" style="background-color: var(--bg-surface-elevated); padding: 16px;">
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Idle Hours</span>
+            <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--state-idle);">{{ profile.idle_hours_today|floatformat:2 }} hrs</h3>
+        </div>
+        <div class="card" style="background-color: var(--bg-surface-elevated); padding: 16px;">
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Break Hours</span>
+            <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--state-meeting);">{{ profile.break_hours_today|floatformat:2 }} hrs</h3>
+        </div>
+        <div class="card" style="background-color: var(--bg-surface-elevated); padding: 16px;">
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Away From WiFi</span>
+            <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--state-outside);">{{ profile.outside_hours_today|floatformat:2 }} hrs</h3>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,263 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Users & Teams | Enterprise Tracker{% endblock %}
+{% block page_header %}User Directory & Teams{% endblock %}
+
+{% block content %}
+<p style="color: var(--text-secondary); margin-bottom: 24px;">Manage team rosters, adjust employee permissions, edit skill logs, and audit activities.</p>
+
+<div class="tab-container">
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab="directory">
+            <i class="bi bi-person-lines-fill"></i> User Directory & Skills
+        </button>
+        <button class="tab-btn" data-tab="teams">
+            <i class="bi bi-people-fill"></i> Team Rosters
+        </button>
+        <button class="tab-btn" data-tab="roles">
+            <i class="bi bi-shield-lock"></i> Role Management
+        </button>
+        <button class="tab-btn" data-tab="audit">
+            <i class="bi bi-shield-check"></i> Login & Activity Audits
+        </button>
+    </div>
+
+    <!-- 1. USER DIRECTORY TAB -->
+    <div id="tab-pane-directory" class="tab-pane active">
+        <div class="grid-stats" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
+            {% for prof in profiles %}
+            <div class="card">
+                <div style="display: flex; gap: 16px; align-items: start;">
+                    <img src="{{ prof.photo_url }}" alt="Avatar" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover;">
+                    <div style="flex-grow: 1;">
+                        <h4 style="margin: 0; font-size: 1.05rem;">{{ prof.user.get_full_name|default:prof.user.username }}</h4>
+                        <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 2px 0;">{{ prof.designation }} | <small>{{ prof.employee_id }}</small></p>
+                        <span class="badge" style="background-color: var(--bg-base); font-size: 0.7rem; font-weight: 700; color: var(--color-primary); margin-top: 4px;">
+                            {{ prof.get_role_display }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Skills mapping -->
+                <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                    <strong style="font-size: 0.85rem; color: var(--text-secondary);">Employee Skills:</strong>
+                    <div class="skills-list" id="skills-list-{{ prof.id }}">
+                        {% for sk in prof.skills.all %}
+                        <span class="skill-tag" title="Click to delete skill" onclick="removeEmployeeSkill('{{ prof.id }}', '{{ sk.id }}')">
+                            {{ sk.skill_name }} ({{ sk.proficiency|slice:":1" }}) <i class="bi bi-x-circle-fill" style="color:var(--state-offline); font-size:0.75rem;"></i>
+                        </span>
+                        {% empty %}
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">No skills registered.</span>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Add skill box -->
+                    {% if user.id == prof.user.id or profile.role == 'ADMIN' %}
+                    <div style="margin-top: 10px; display: flex; gap: 6px;">
+                        <input type="text" id="new-skill-name" class="form-control" style="padding: 4px 8px; font-size: 0.75rem;" placeholder="Add skill name...">
+                        <select id="new-skill-proficiency" class="form-control" style="padding: 4px 8px; font-size: 0.75rem; width: auto;">
+                            <option value="BEGINNER">Beg</option>
+                            <option value="INTERMEDIATE" selected>Int</option>
+                            <option value="EXPERT">Exp</option>
+                        </select>
+                        <button onclick="addEmployeeSkill('{{ prof.id }}')" class="btn btn-primary" style="padding: 4px 8px; font-size: 0.75rem;">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 2. TEAMS TAB -->
+    <div id="tab-pane-teams" class="tab-pane">
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+            <button onclick="openModal('create-team-modal')" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Create Team
+            </button>
+        </div>
+
+        <div class="grid-stats" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+            {% for t in teams %}
+            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; min-height: 220px;">
+                <div>
+                    <h3 style="margin-bottom: 8px;">{{ t.name }}</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); min-height: 40px;">{{ t.description }}</p>
+                    <p style="font-size: 0.85rem;"><strong>Lead:</strong> {{ t.lead.user.get_full_name|default:t.lead.user.username }}</p>
+                    <p style="font-size: 0.85rem;"><strong>Department:</strong> {{ t.department.name|default:"General" }}</p>
+                </div>
+                
+                <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px;">
+                    <strong style="width: 100%; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">Members ({{ t.members.count }}):</strong>
+                    {% for mem in t.members.all %}
+                    <span class="badge" style="background-color: var(--bg-surface-elevated); font-size: 0.75rem;">
+                        {{ mem.user.get_full_name|default:mem.user.username }}
+                    </span>
+                    {% empty %}
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">No members assigned yet.</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 3. ROLE MANAGEMENT TAB -->
+    <div id="tab-pane-roles" class="tab-pane">
+        <div class="card">
+            <h3 class="card-title"><i class="bi bi-shield-lock-fill"></i> Adjust Employee Roles</h3>
+            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px;">
+                Updating user roles automatically configures corresponding portal dashboard tab views and operational permissions.
+            </p>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>User Profile</th>
+                            <th>Current Role</th>
+                            <th>Modify Role Target</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for prof in profiles %}
+                        <tr>
+                            <td>
+                                <strong>{{ prof.user.get_full_name|default:prof.user.username }}</strong><br>
+                                <small style="color:var(--text-muted);">{{ prof.designation }} | {{ prof.employee_id }}</small>
+                            </td>
+                            <td>
+                                <span class="badge" style="background-color: var(--bg-surface-elevated); font-weight: 700;">
+                                    {{ prof.get_role_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <form method="POST" style="margin: 0; display: flex; gap: 8px;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="modify_role">
+                                    <input type="hidden" name="profile_id" value="{{ prof.id }}">
+                                    <select name="role" class="form-control" style="width: auto; padding: 4px 8px; font-size: 0.85rem;">
+                                        <option value="ADMIN" {% if prof.role == 'ADMIN' %}selected{% endif %}>Admin</option>
+                                        <option value="EXECUTIVE" {% if prof.role == 'EXECUTIVE' %}selected{% endif %}>Executive</option>
+                                        <option value="MANAGER" {% if prof.role == 'MANAGER' %}selected{% endif %}>Manager</option>
+                                        <option value="TEAM_LEAD" {% if prof.role == 'TEAM_LEAD' %}selected{% endif %}>Team Lead</option>
+                                        <option value="EMPLOYEE" {% if prof.role == 'EMPLOYEE' %}selected{% endif %}>Employee</option>
+                                    </select>
+                                    <button type="submit" class="btn btn-primary" style="padding: 4px 10px; font-size: 0.8rem;">Update</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. AUDIT LOGS TAB -->
+    <div id="tab-pane-audit" class="tab-pane">
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px;">
+            <div class="card">
+                <h3 class="card-title"><i class="bi bi-key"></i> System Login History</h3>
+                <div style="display: flex; flex-direction: column; gap: 10px; max-height: 450px; overflow-y: auto;">
+                    {% for h in login_history %}
+                    <div style="padding: 10px; background-color: var(--bg-surface-elevated); border-radius: var(--radius-sm); font-size: 0.8rem; border-left: 3px solid {% if 'LOGIN' in h.action %}var(--state-working){% else %}var(--state-offline){% endif %};">
+                        <strong>{{ h.user.username }}</strong> completed {{ h.action }}<br>
+                        <span style="color:var(--text-secondary); font-size:0.75rem;">At: {{ h.timestamp|date:"d M H:i:s" }} | IP: {{ h.ip_address }}</span>
+                    </div>
+                    {% empty %}
+                    <p style="color:var(--text-muted);">No login history records.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="card-title"><i class="bi bi-body-text"></i> System Activity Logs</h3>
+                <div class="table-container" style="max-height: 450px; overflow-y: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Timestamp</th>
+                                <th>Action</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for act in activity_logs %}
+                            <tr>
+                                <td><strong>{{ act.user.username|default:"System" }}</strong></td>
+                                <td style="font-size: 0.8rem; color: var(--text-secondary);">{{ act.timestamp|date:"d M H:i" }}</td>
+                                <td><span class="badge" style="background-color: var(--bg-surface-elevated); font-weight: 700; font-size: 0.75rem;">{{ act.action }}</span></td>
+                                <td style="font-size: 0.8rem; color: var(--text-secondary);">{{ act.details }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" style="text-align: center; color: var(--text-muted);">No action logs.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Create Team -->
+<div id="create-team-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="margin: 0;"><i class="bi bi-people-fill"></i> Create Custom Team</h3>
+            <button onclick="closeModal('create-team-modal')" class="modal-close">&times;</button>
+        </div>
+        <form method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_team">
+            
+            <div class="form-group">
+                <label for="team-name">Team Name</label>
+                <input type="text" id="team-name" name="name" class="form-control" placeholder="e.g. Mercury DevOps" required>
+            </div>
+
+            <div class="form-group">
+                <label for="team-desc">Description</label>
+                <textarea id="team-desc" name="description" class="form-control" rows="2" placeholder="Mission, scope, objectives..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="team-dept">Department Mapped</label>
+                <select id="team-dept" name="department" class="form-control">
+                    <option value="">General (No specific dept)</option>
+                    {% for dept in departments %}
+                    <option value="{{ dept.id }}">{{ dept.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="team-lead">Team Lead / Manager</label>
+                <select id="team-lead" name="lead" class="form-control" required>
+                    {% for prof in profiles %}
+                    <option value="{{ prof.id }}">{{ prof.user.get_full_name|default:prof.user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="team-members">Roster Members (Hold Ctrl to select multiple)</label>
+                <select id="team-members" name="members" class="form-control" style="height: 120px;" multiple>
+                    {% for prof in profiles %}
+                    <option value="{{ prof.id }}">{{ prof.user.get_full_name|default:prof.user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                <button type="button" onclick="closeModal('create-team-modal')" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Establish Team</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

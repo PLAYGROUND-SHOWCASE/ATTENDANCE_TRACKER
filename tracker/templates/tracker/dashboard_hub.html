@@ -1,0 +1,476 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Dashboard Hub | Enterprise Tracker{% endblock %}
+{% block page_header %}Dashboard Hub{% endblock %}
+
+{% block content %}
+<div class="tab-container">
+    <!-- Tab Navigation -->
+    <div class="tab-nav" data-type="dashboard">
+        <button class="tab-btn {% if active_tab == 'personal' %}active{% endif %}" data-tab="personal">
+            <i class="bi bi-person-badge"></i> Personal Dashboard
+        </button>
+        {% if user.is_superuser or profile.role == 'ADMIN' or profile.role == 'EXECUTIVE' %}
+        <button class="tab-btn {% if active_tab == 'executive' %}active{% endif %}" data-tab="executive">
+            <i class="bi bi-briefcase"></i> Executive Dashboard
+        </button>
+        {% endif %}
+        <button class="tab-btn {% if active_tab == 'team' %}active{% endif %}" data-tab="team">
+            <i class="bi bi-people"></i> Team Dashboard
+        </button>
+        <button class="tab-btn {% if active_tab == 'project' %}active{% endif %}" data-tab="project">
+            <i class="bi bi-kanban"></i> Project Dashboard
+        </button>
+        <button class="tab-btn {% if active_tab == 'department' %}active{% endif %}" data-tab="department">
+            <i class="bi bi-building"></i> Department Dashboard
+        </button>
+    </div>
+
+    <!-- Notification Feed -->
+    {% if notifications %}
+    <div class="card" style="margin-bottom: 24px; border-left: 4px solid var(--state-idle); background-color: rgba(255, 180, 0, 0.05);">
+        <h4 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+            <i class="bi bi-bell-fill" style="color: var(--state-idle);"></i> Pending Notifications
+        </h4>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            {% for notif in notifications %}
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background-color: var(--bg-surface-elevated); border-radius: var(--radius-sm); font-size: 0.9rem;">
+                <span>{{ notif.message }} <small style="color: var(--text-muted);">({{ notif.created_at|date:"d M H:i" }})</small></span>
+                <form method="POST" style="margin: 0;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="read_notification">
+                    <input type="hidden" name="notification_id" value="{{ notif.id }}">
+                    <button type="submit" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;">Acknowledge</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 1. PERSONAL DASHBOARD TAB -->
+    <div class="tab-pane {% if active_tab == 'personal' %}active{% endif %}">
+        <div class="grid-stats">
+            <div class="card stat-card">
+                <div class="stat-icon" style="color: var(--state-working);"><i class="bi bi-clock-history"></i></div>
+                <div class="stat-info">
+                    <span class="stat-label">Hours Tracked Today</span>
+                    <span class="stat-value">{{ profile.working_hours_today|floatformat:1 }}h</span>
+                </div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-icon" style="color: var(--color-primary);"><i class="bi bi-clipboard-check"></i></div>
+                <div class="stat-info">
+                    <span class="stat-label">Pending Assigned Tasks</span>
+                    <span class="stat-value">{{ pending_issues_count }}</span>
+                </div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-icon" style="color: var(--state-meeting);"><i class="bi bi-patch-check"></i></div>
+                <div class="stat-info">
+                    <span class="stat-label">Completed Tasks</span>
+                    <span class="stat-value">{{ completed_issues_count }}</span>
+                </div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-icon" style="color: var(--state-outside);"><i class="bi bi-door-open"></i></div>
+                <div class="stat-info">
+                    <span class="stat-label">Attendance State</span>
+                    <span class="stat-value" style="font-size: 1.1rem;">{{ profile.get_current_status_display }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="charts-container" style="margin-top: 24px;">
+            <!-- Pending Issues -->
+            <div class="card">
+                <h3 class="card-title"><i class="bi bi-list-task"></i> My Assigned Tasks</h3>
+                {% if personal_issues %}
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Key & Title</th>
+                                <th>Project</th>
+                                <th>Type</th>
+                                <th>Priority</th>
+                                <th>Due Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for issue in personal_issues %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'project_board' issue.project.id %}" style="color: var(--text-primary); text-decoration: none; font-weight: 600;">
+                                        {{ issue.project.key }}-{{ issue.id }}: {{ issue.title }}
+                                    </a>
+                                </td>
+                                <td>{{ issue.project.name }}</td>
+                                <td><span class="type-badge type-{{ issue.issue_type|lower }}">{{ issue.get_issue_type_display }}</span></td>
+                                <td><span class="priority-badge prio-{{ issue.priority|lower }}">{{ issue.get_priority_display }}</span></td>
+                                <td style="color: {% if issue.due_date <= today %}var(--state-offline){% else %}var(--text-primary){% endif %}; font-weight: 600;">
+                                    {{ issue.due_date|default:"-" }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p style="color: var(--text-muted);">No pending tasks assigned to you. Cheers!</p>
+                {% endif %}
+            </div>
+
+            <!-- Deadlines & Leave Summary -->
+            <div class="card" style="display: flex; flex-direction: column; gap: 20px;">
+                <div>
+                    <h3 class="card-title" style="margin-bottom: 12px;"><i class="bi bi-exclamation-triangle"></i> Upcoming Deadlines</h3>
+                    {% if upcoming_deadlines %}
+                    <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px;">
+                        {% for issue in upcoming_deadlines %}
+                        <li style="padding: 10px; background-color: var(--bg-surface-elevated); border-radius: var(--radius-sm); font-size: 0.85rem; border-left: 3px solid var(--state-offline);">
+                            <strong>{{ issue.title }}</strong><br>
+                            <span style="color: var(--text-muted);">Due: {{ issue.due_date }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">No deadlines in the next 7 days.</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <h3 class="card-title" style="margin-bottom: 12px;"><i class="bi bi-calendar-event"></i> My Leaves Requests</h3>
+                    {% if applied_leaves %}
+                    <div style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+                        {% for leave in applied_leaves %}
+                        <div style="padding: 8px 12px; background-color: var(--bg-surface-elevated); border-radius: var(--radius-sm); font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>{{ leave.get_leave_type_display }}</strong><br>
+                                <span style="color: var(--text-muted);">{{ leave.start_date }} to {{ leave.end_date }}</span>
+                            </div>
+                            <span class="badge" style="background-color: {% if leave.status == 'APPROVED' %}rgba(0,200,100,0.15){% elif leave.status == 'REJECTED' %}rgba(255,50,50,0.15){% else %}rgba(255,180,0,0.15){% endif %}; color: {% if leave.status == 'APPROVED' %}var(--state-working){% elif leave.status == 'REJECTED' %}var(--state-offline){% else %}var(--state-idle){% endif %};">
+                                {{ leave.get_status_display }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">No leave requests filed yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. EXECUTIVE DASHBOARD TAB -->
+    {% if user.is_superuser or profile.role == 'ADMIN' or profile.role == 'EXECUTIVE' %}
+    <div class="tab-pane {% if active_tab == 'executive' %}active{% endif %}">
+        <div class="grid-stats">
+            <div class="card stat-card">
+                <div class="stat-icon" style="color: var(--color-primary);"><i class="bi bi-folder2-open"></i></div>
+                <div class="stat-info">
+                    <span class="stat-label">Active Projects</span>
+                    <span class="stat-value">{{ total_projects }}</span>
+                </div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-icon" style="color: var(--color-secondary);"><i class="bi bi-wallet2"></i></div>
+                <div class="stat-info">
+                    <span class="stat-label">Total Projects Budget</span>
+                    <span class="stat-value">${{ total_budget|floatformat:2 }}</span>
+                </div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-icon" style="color: var(--state-working);"><i class="bi bi-cash-stack"></i></div>
+                <div class="stat-info">
+                    <span class="stat-label">Invested Project Costs</span>
+                    <span class="stat-value">${{ total_cost|floatformat:2 }}</span>
+                </div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-icon" style="color: var(--state-idle);"><i class="bi bi-people-fill"></i></div>
+                <div class="stat-info">
+                    <span class="stat-label">Company Count</span>
+                    <span class="stat-value">{{ total_employees }} Employees</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+            <div class="card">
+                <h3 class="card-title"><i class="bi bi-diagram-3"></i> Company Overview</h3>
+                <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                        <span>Total Departments</span>
+                        <strong>{{ total_departments }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                        <span>Operating Branches</span>
+                        <strong>{{ total_branches }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                        <span>Active Cost Centers</span>
+                        <strong>{{ total_cost_centers }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                        <span>Approved Expenses Total</span>
+                        <strong style="color: var(--state-working);">${{ expenses_approved|floatformat:2 }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding-bottom: 8px;">
+                        <span>Pending Expense Approvals</span>
+                        <strong style="color: var(--state-idle);">${{ expenses_pending|floatformat:2 }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Presence Breakdown -->
+            <div class="card">
+                <h3 class="card-title"><i class="bi bi-shield-check"></i> Today's Live Attendance Monitor</h3>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 10px;">
+                    <div style="padding: 10px; background-color: var(--bg-surface-elevated); border-radius: var(--radius-sm); text-align: center;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Total Present Today</span><br>
+                        <strong style="font-size: 1.4rem; color: var(--state-working);">{{ present_count }}</strong>
+                    </div>
+                    <div style="padding: 10px; background-color: var(--bg-surface-elevated); border-radius: var(--radius-sm); text-align: center;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Active Working</span><br>
+                        <strong style="font-size: 1.4rem; color: var(--state-working);">{{ working_count }}</strong>
+                    </div>
+                    <div style="padding: 10px; background-color: var(--bg-surface-elevated); border-radius: var(--radius-sm); text-align: center;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Idle/Meeting</span><br>
+                        <strong style="font-size: 1.4rem; color: var(--state-idle);">{{ idle_count|add:meeting_count }}</strong>
+                    </div>
+                    <div style="padding: 10px; background-color: var(--bg-surface-elevated); border-radius: var(--radius-sm); text-align: center;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Checked Out / Offline</span><br>
+                        <strong style="font-size: 1.4rem; color: var(--state-offline);">{{ checked_out_count|add:offline_count }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="card-title"><i class="bi bi-activity"></i> Recent Activity Logs (Global Audit Trail)</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Timestamp</th>
+                            <th>Action</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for act in recent_activities %}
+                        <tr>
+                            <td><strong>{{ act.user.username|default:"System" }}</strong></td>
+                            <td style="font-size: 0.8rem; color: var(--text-secondary);">{{ act.timestamp|date:"d M H:i:s" }}</td>
+                            <td><span class="badge" style="background-color: var(--bg-surface-elevated); font-weight: 700;">{{ act.action }}</span></td>
+                            <td style="font-size: 0.85rem; color: var(--text-secondary);">{{ act.details }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 3. TEAM DASHBOARD TAB -->
+    <div class="tab-pane {% if active_tab == 'team' %}active{% endif %}">
+        <div class="card" style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <h3 class="card-title" style="margin: 0;"><i class="bi bi-people-fill"></i> Team Rosters & Availability</h3>
+                <form method="GET" style="margin: 0; display: flex; gap: 10px; align-items: center;">
+                    <input type="hidden" name="tab" value="team">
+                    <label for="team-select" style="font-weight: 600; font-size: 0.9rem;">Select Team:</label>
+                    <select id="team-select" name="team_id" onchange="this.form.submit()" class="form-control" style="width: auto; padding: 6px 12px;">
+                        {% for t in teams %}
+                        <option value="{{ t.id }}" {% if selected_team.id == t.id %}selected{% endif %}>{{ t.name }}</option>
+                        {% empty %}
+                        <option>No Teams Defined</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+            
+            {% if selected_team %}
+            <div style="margin-top: 15px;">
+                <p><strong>Department:</strong> {{ selected_team.department.name|default:"General" }} | <strong>Lead:</strong> {{ selected_team.lead|default:"No Lead Assigned" }}</p>
+                <div class="table-container" style="margin-top: 15px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Availability Status</th>
+                                <th>Active Task Load</th>
+                                <th>Total Assigned Story Points</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in workload_data %}
+                            <tr>
+                                <td><strong>{{ row.name }}</strong></td>
+                                <td>
+                                    <span class="badge {% if 'Working' in row.status %}status-working{% elif 'Idle' in row.status %}status-idle{% elif 'Outside' in row.status %}status-outside{% else %}status-offline{% endif %}">
+                                        <span class="badge-dot"></span> {{ row.status }}
+                                    </span>
+                                </td>
+                                <td>{{ row.task_count }} Issues</td>
+                                <td>{{ row.story_points }} SP</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% else %}
+            <p style="color: var(--text-muted); margin-top: 15px;">You are not associated with any team rosters.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 4. PROJECT DASHBOARD TAB -->
+    <div class="tab-pane {% if active_tab == 'project' %}active{% endif %}">
+        <div class="card" style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <h3 class="card-title" style="margin: 0;"><i class="bi bi-projector"></i> Project Status & Sprint Analytics</h3>
+                <form method="GET" style="margin: 0; display: flex; gap: 10px; align-items: center;">
+                    <input type="hidden" name="tab" value="project">
+                    <label for="project-select" style="font-weight: 600; font-size: 0.9rem;">Select Project:</label>
+                    <select id="project-select" name="project_id" onchange="this.form.submit()" class="form-control" style="width: auto; padding: 6px 12px;">
+                        {% for p in projects %}
+                        <option value="{{ p.id }}" {% if selected_project.id == p.id %}selected{% endif %}>{{ p.name }} ({{ p.key }})</option>
+                        {% empty %}
+                        <option>No Active Projects</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+            
+            {% if selected_project %}
+            <div style="margin-top: 20px; display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <div class="control-group">
+                        <div class="control-title">Active Sprint Overview</div>
+                        {% if active_sprint %}
+                        <p><strong>Sprint Name:</strong> {{ active_sprint.name }}</p>
+                        <p><strong>Timeline:</strong> {{ active_sprint.start_date }} to {{ active_sprint.end_date }}</p>
+                        
+                        <div style="margin-top: 12px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
+                                <span>Sprint Points Completion</span>
+                                <strong>{{ done_points }} / {{ total_points }} SP ({{ sprint_progress }}%)</strong>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-fill" style="width: {{ sprint_progress }}%;"></div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <p style="color: var(--text-muted);">No active sprints running for this project. Track tasks in the Backlog.</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="control-group">
+                        <div class="control-title">Budget Utilisation Progress</div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
+                            <span>Budget vs Cost</span>
+                            <strong>${{ selected_project.cost }} / ${{ selected_project.budget }}</strong>
+                        </div>
+                        <div class="progress-bar-container" style="height: 12px;">
+                            <div class="progress-fill" style="width: {% widthratio selected_project.cost selected_project.budget 100 %}%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group" style="margin: 0; display: flex; flex-direction: column; gap: 12px;">
+                    <div class="control-title">Bugs & Quality Analytics</div>
+                    <div style="padding: 10px; background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); text-align: center;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Total Logged Bugs</span><br>
+                        <strong style="font-size: 1.5rem; color: var(--state-offline);">{{ bug_count }}</strong>
+                    </div>
+                    <div style="padding: 10px; background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); text-align: center;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Critical/Blockers</span><br>
+                        <strong style="font-size: 1.5rem; color: var(--state-offline);">{{ critical_bug_count }}</strong>
+                    </div>
+                    <a href="{% url 'project_board' selected_project.id %}" class="btn btn-primary" style="margin-top: 10px; width: 100%; text-decoration: none; justify-content: center;">Go to Project Board</a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 5. DEPARTMENT DASHBOARD TAB -->
+    <div class="tab-pane {% if active_tab == 'department' %}active{% endif %}">
+        <div class="card" style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <h3 class="card-title" style="margin: 0;"><i class="bi bi-building"></i> Departmental Operations Overview</h3>
+                <form method="GET" style="margin: 0; display: flex; gap: 10px; align-items: center;">
+                    <input type="hidden" name="tab" value="department">
+                    <label for="dept-select" style="font-weight: 600; font-size: 0.9rem;">Select Department:</label>
+                    <select id="dept-select" name="department_id" onchange="this.form.submit()" class="form-control" style="width: auto; padding: 6px 12px;">
+                        {% for d in departments %}
+                        <option value="{{ d.id }}" {% if selected_dept.id == d.id %}selected{% endif %}>{{ d.name }}</option>
+                        {% empty %}
+                        <option>No Departments Available</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+
+            {% if selected_dept %}
+            <div style="margin-top: 20px; display: grid; grid-template-columns: 1fr 2fr; gap: 24px;">
+                <div class="control-group">
+                    <div class="control-title">divisions list</div>
+                    <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px;">
+                        {% for div in divisions %}
+                        <li style="padding: 8px 12px; background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.85rem;">
+                            <strong>{{ div.name }}</strong>
+                            <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">{{ div.description }}</p>
+                        </li>
+                        {% empty %}
+                        <p style="color: var(--text-muted);">No subdivisions mapped to this department.</p>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="control-group" style="margin: 0;">
+                    <div class="control-title">Pending Leave Approvals for Department Staff</div>
+                    {% if dept_leaves %}
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Staff Member</th>
+                                    <th>Type</th>
+                                    <th>Duration</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for leave in dept_leaves %}
+                                <tr>
+                                    <td><strong>{{ leave.employee.user.get_full_name|default:leave.employee.user.username }}</strong></td>
+                                    <td>{{ leave.get_leave_type_display }}</td>
+                                    <td>{{ leave.start_date }} to {{ leave.end_date }}</td>
+                                    <td>
+                                        <form method="POST" action="{% url 'approve_leave' leave.id %}" style="display: inline-flex; gap: 6px; margin: 0;">
+                                            {% csrf_token %}
+                                            <button type="submit" name="action" value="approve" class="btn btn-success" style="padding: 4px 8px; font-size: 0.75rem;">Approve</button>
+                                            <button type="submit" name="action" value="reject" class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;">Reject</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p style="color: var(--text-muted);">No pending leaves requests for this department.</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

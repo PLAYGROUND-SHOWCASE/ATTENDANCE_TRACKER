@@ -1,0 +1,158 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Enterprise Presence Tracking{% endblock %}</title>
+    
+    <!-- Bootstrap Icons CDN for premium visual cues -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <!-- Main Style -->
+    <link rel="stylesheet" href="{% static 'tracker/style.css' %}">
+    
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <i class="bi bi-shield-check" style="font-size: 1.5rem; color: var(--color-primary);"></i>
+                <span>Enterprise Track</span>
+            </div>
+            <ul class="sidebar-menu">
+                <li class="{% if request.resolver_match.view_name == 'dashboard_hub' %}active{% endif %}">
+                    <a href="{% url 'dashboard_hub' %}">
+                        <i class="bi bi-grid-3x3-gap-fill"></i> Dashboard Hub
+                    </a>
+                </li>
+
+                <li class="{% if request.resolver_match.view_name == 'projects_list' or request.resolver_match.view_name == 'project_board' %}active{% endif %}">
+                    <a href="{% url 'projects_list' %}">
+                        <i class="bi bi-kanban"></i> Project Boards
+                    </a>
+                </li>
+
+                <li class="{% if request.resolver_match.view_name == 'organization_hub' %}active{% endif %}">
+                    <a href="{% url 'organization_hub' %}">
+                        <i class="bi bi-building"></i> Organization Hub
+                    </a>
+                </li>
+
+                {% if user.is_superuser or user.profile.role == 'ADMIN' or user.profile.role == 'MANAGER' %}
+                <li class="{% if request.resolver_match.view_name == 'user_management_hub' %}active{% endif %}">
+                    <a href="{% url 'user_management_hub' %}">
+                        <i class="bi bi-people-fill"></i> Users & Teams
+                    </a>
+                </li>
+                {% endif %}
+
+                <li class="{% if request.resolver_match.view_name == 'expense_tracker' %}active{% endif %}">
+                    <a href="{% url 'expense_tracker' %}">
+                        <i class="bi bi-credit-card-fill"></i> Expenses Tracker
+                    </a>
+                </li>
+
+                <li class="{% if request.resolver_match.view_name == 'settings_panel' %}active{% endif %}">
+                    <a href="{% url 'settings_panel' %}">
+                        <i class="bi bi-gear-fill"></i> Portal Settings
+                    </a>
+                </li>
+
+                <hr style="border-color:var(--border-color); margin:10px 0;">
+
+                {% if user.is_staff or user.profile.manager %}
+                <li class="{% if request.resolver_match.view_name == 'admin_dashboard' %}active{% endif %}">
+                    <a href="{% url 'admin_dashboard' %}">
+                        <i class="bi bi-speedometer2"></i> Presence Monitor
+                    </a>
+                </li>
+                {% endif %}
+                
+                <li class="{% if request.resolver_match.view_name == 'employee_dashboard' %}active{% endif %}">
+                    <a href="{% url 'employee_dashboard' %}">
+                        <i class="bi bi-person-badge"></i> My Portal
+                    </a>
+                </li>
+                
+                <li class="{% if request.resolver_match.view_name == 'simulator' %}active{% endif %}">
+                    <a href="{% url 'simulator' %}" style="color: var(--state-working);">
+                        <i class="bi bi-cpu-fill" style="color: var(--state-working);"></i> Agent Simulator
+                    </a>
+                </li>
+                
+                <li class="{% if request.resolver_match.view_name == 'reports' %}active{% endif %}">
+                    <a href="{% url 'reports' %}">
+                        <i class="bi bi-bar-chart-line"></i> Reports & Logs
+                    </a>
+                </li>
+                
+                {% if user.is_superuser %}
+                <li>
+                    <a href="/admin/" target="_blank">
+                        <i class="bi bi-sliders"></i> Django Settings
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+            
+            <div class="sidebar-footer">
+                <a href="{% url 'logout' %}" class="btn btn-secondary" style="width: 100%; justify-content: center; gap: 8px;">
+                    <i class="bi bi-box-arrow-left"></i> Logout
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <div class="main-content">
+            <header>
+                <div class="page-title">
+                    <h1>{% block page_header %}Dashboard{% endblock %}</h1>
+                </div>
+                
+                <div class="header-actions">
+                    <!-- Light/Dark Mode Switch -->
+                    <button class="theme-switch" id="theme-toggle" aria-label="Toggle Theme">
+                        ☀️
+                    </button>
+                    
+                    <!-- User Profile Pill -->
+                    <div class="user-pill">
+                        <img class="user-avatar" src="{{ user.profile.photo_url }}" alt="Profile Photo">
+                        <div class="user-name">
+                            {{ user.first_name|default:user.username }}
+                            <br>
+                            <small style="color: var(--text-muted); font-size: 0.7rem; font-weight: normal;">
+                                {% if user.is_superuser %}Super Admin{% elif user.profile.manager %}Manager{% else %}Employee{% endif %}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <main class="content-body">
+                {% if messages %}
+                <div style="margin-bottom: 24px;">
+                    {% for msg in messages %}
+                    <div class="card" style="padding: 12px 20px; margin-bottom: 10px; border-left: 4px solid var(--color-primary); background-color: var(--bg-surface-elevated); font-size: 0.9rem;">
+                        {{ msg }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Main Client-Side JS -->
+    <script src="{% static 'tracker/main.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

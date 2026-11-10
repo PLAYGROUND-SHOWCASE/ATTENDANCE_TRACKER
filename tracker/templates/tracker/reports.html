@@ -1,0 +1,260 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Reports & Audit Logs - Enterprise Tracker{% endblock %}
+{% block page_header %}System Audits & Reports{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: 32px;">
+    <div class="card-title"><i class="bi bi-filter" style="margin-right: 8px;"></i> Select Report Category</div>
+    
+    <!-- Report selector pills -->
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+        <a href="?type=attendance" class="btn {% if active_report == 'attendance' %}btn-primary{% else %}btn-secondary{% endif %}">
+            <i class="bi bi-calendar-check"></i> Attendance Report
+        </a>
+        <a href="?type=outside" class="btn {% if active_report == 'outside' %}btn-primary{% else %}btn-secondary{% endif %}">
+            <i class="bi bi-geo-alt"></i> Outside Office Log
+        </a>
+        <a href="?type=internet" class="btn {% if active_report == 'internet' %}btn-primary{% else %}btn-secondary{% endif %}">
+            <i class="bi bi-globe"></i> Internet Outage Log
+        </a>
+        <a href="?type=laptop" class="btn {% if active_report == 'laptop' %}btn-primary{% else %}btn-secondary{% endif %}">
+            <i class="bi bi-laptop"></i> Laptop Activity Log
+        </a>
+        <a href="?type=productivity" class="btn {% if active_report == 'productivity' %}btn-primary{% else %}btn-secondary{% endif %}">
+            <i class="bi bi-graph-up"></i> Productivity & Timeline
+        </a>
+        <a href="?type=audit" class="btn {% if active_report == 'audit' %}btn-primary{% else %}btn-secondary{% endif %}">
+            <i class="bi bi-shield-lock"></i> Security Audit Log
+        </a>
+    </div>
+    
+    <!-- Export control -->
+    <div style="display: flex; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="alert('Exporting data as CSV (Simulated)')">
+            <i class="bi bi-download"></i> Export CSV
+        </button>
+    </div>
+</div>
+
+<!-- Report Table Output -->
+<div class="card">
+    <div class="card-title">
+        {% if active_report == 'attendance' %}
+            <i class="bi bi-calendar-check" style="color: var(--color-primary); margin-right: 8px;"></i> Attendance Compliance Log
+        {% elif active_report == 'outside' %}
+            <i class="bi bi-geo-alt" style="color: var(--state-outside); margin-right: 8px;"></i> Out of WiFi/Office Range Records
+        {% elif active_report == 'internet' %}
+            <i class="bi bi-globe" style="color: var(--color-secondary); margin-right: 8px;"></i> Internet Connection Outage Audits
+        {% elif active_report == 'laptop' %}
+            <i class="bi bi-laptop" style="color: var(--state-working); margin-right: 8px;"></i> Desktop Agent Connection Logs
+        {% elif active_report == 'productivity' %}
+            <i class="bi bi-graph-up" style="color: var(--color-primary); margin-right: 8px;"></i> Shift Productivity Audits
+        {% elif active_report == 'audit' %}
+            <i class="bi bi-shield-lock" style="color: var(--state-offline); margin-right: 8px;"></i> Security Compliance Audit trail
+        {% endif %}
+    </div>
+
+    <div class="table-container">
+        {% if active_report == 'attendance' %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Date</th>
+                    <th>Check In</th>
+                    <th>Check Out</th>
+                    <th>Total Hours</th>
+                    <th>In Method</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in records %}
+                <tr>
+                    <td><strong>{{ log.employee.user.get_full_name|default:log.employee.user.username }}</strong><br><small style="color: var(--text-muted)">{{ log.employee.employee_id }}</small></td>
+                    <td>{{ log.date }}</td>
+                    <td>{{ log.check_in|time:"H:i:s" }}</td>
+                    <td>{{ log.check_out|time:"H:i:s"|default:"-" }}</td>
+                    <td>{{ log.total_hours|floatformat:2 }} hrs</td>
+                    <td><small>{{ log.get_check_in_method_display }}</small></td>
+                    <td>
+                        <span class="badge {% if log.status == 'PRESENT' %}status-working{% elif log.status == 'LATE' %}status-idle{% else %}status-offline{% endif %}">
+                            {{ log.get_status_display }}
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No records available.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% elif active_report == 'outside' %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>WiFi Disconnection Time</th>
+                    <th>WiFi Reconnection Time</th>
+                    <th>Outside Duration</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in records %}
+                <tr>
+                    <td><strong>{{ log.employee.user.get_full_name|default:log.employee.user.username }}</strong></td>
+                    <td>{{ log.out_time }}</td>
+                    <td>{{ log.return_time|default:"Active Outage" }}</td>
+                    <td>{{ log.duration_seconds }} seconds</td>
+                    <td><span class="badge btn-secondary">{{ log.reason }}</span></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No WiFi range disconnection records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% elif active_report == 'internet' %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Connection Lost</th>
+                    <th>Connection Restored</th>
+                    <th>Downtime Duration</th>
+                    <th>Auto Checkout</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in records %}
+                <tr>
+                    <td><strong>{{ log.employee.user.get_full_name|default:log.employee.user.username }}</strong></td>
+                    <td>{{ log.offline_start }}</td>
+                    <td>{{ log.online_return|default:"Offline Now" }}</td>
+                    <td>{{ log.duration_seconds }} seconds</td>
+                    <td>
+                        {% if log.auto_checkout_triggered %}
+                        <span class="badge status-offline">Triggered</span>
+                        {% else %}
+                        <span class="badge status-working">Restored</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No internet connection drops recorded.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% elif active_report == 'laptop' %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Timestamp</th>
+                    <th>Agent Event</th>
+                    <th>Active App</th>
+                    <th>Idle Duration</th>
+                    <th>CPU Usage</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in records %}
+                <tr>
+                    <td><strong>{{ log.employee.user.get_full_name|default:log.employee.user.username }}</strong></td>
+                    <td>{{ log.timestamp }}</td>
+                    <td>
+                        <span class="badge {% if log.state == 'ACTIVE' %}status-working{% elif log.state == 'IDLE' or log.state == 'SLEEP' %}status-idle{% else %}status-offline{% endif %}">
+                            {{ log.get_state_display }}
+                        </span>
+                    </td>
+                    <td><code>{{ log.active_application|default:"-" }}</code></td>
+                    <td>{{ log.idle_duration_seconds }}s</td>
+                    <td>{{ log.cpu_usage }}%</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No desktop agent event logs found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% elif active_report == 'productivity' %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Working Hours</th>
+                    <th>Idle Hours</th>
+                    <th>Break Hours</th>
+                    <th>Away Hours</th>
+                    <th>Work Ratio</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in records %}
+                <tr>
+                    <td><strong>{{ log.user.get_full_name|default:log.user.username }}</strong></td>
+                    <td>{{ log.working_hours_today|floatformat:2 }} hrs</td>
+                    <td>{{ log.idle_hours_today|floatformat:2 }} hrs</td>
+                    <td>{{ log.break_hours_today|floatformat:2 }} hrs</td>
+                    <td>{{ log.outside_hours_today|floatformat:2 }} hrs</td>
+                    <td>
+                        <strong>
+                            {% if log.working_hours_today > 0 or log.idle_hours_today > 0 %}
+                                {% widthratio log.working_hours_today log.working_hours_today|add:log.idle_hours_today 100 %}%
+                            {% else %}
+                                0%
+                            {% endif %}
+                        </strong>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No employee stats cached today.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% elif active_report == 'audit' %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>User</th>
+                    <th>Action Event</th>
+                    <th>Audit Details</th>
+                    <th>IP Address</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in records %}
+                <tr>
+                    <td><small>{{ log.timestamp }}</small></td>
+                    <td><strong>{{ log.user.username|default:"System Engine" }}</strong></td>
+                    <td><span class="badge status-working" style="background-color: var(--bg-surface-elevated)">{{ log.action }}</span></td>
+                    <td>{{ log.details }}</td>
+                    <td><code>{{ log.ip_address|default:"-" }}</code></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No audit trails logged.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
